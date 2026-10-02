@@ -1,8 +1,9 @@
-const CACHE = "gym-v5";
+const CACHE = "gym-v6";
 const ASSETS = [
   "./",
   "./index.html",
   "./app.js",
+  "./firebase-config.js",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
@@ -10,7 +11,10 @@ const ASSETS = [
   "./apple-touch-icon.png",
   "https://unpkg.com/react@18/umd/react.production.min.js",
   "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js",
-  "https://unpkg.com/@babel/standalone/babel.min.js"
+  "https://unpkg.com/@babel/standalone/babel.min.js",
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js",
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js",
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"
 ];
 
 self.addEventListener("install", e => {

@@ -9,18 +9,24 @@ const GROUPS = {
 };
 const KEY = "gym_v5";
 
-const storage = {
-  get(k) {
-    try { const v = localStorage.getItem(k); return Promise.resolve(v ? {value:v} : null); }
-    catch(e) { return Promise.reject(e); }
-  },
-  set(k, v) {
-    try { localStorage.setItem(k, v); return Promise.resolve(); }
-    catch(e) { return Promise.reject(e); }
-  }
-};
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db = firebase.firestore();
+db.enablePersistence().catch(() => {});
 
 function uid() { return Math.random().toString(36).slice(2); }
+
+async function runBatched(ops) {
+  const CHUNK = 400;
+  for (let i = 0; i < ops.length; i += CHUNK) {
+    const batch = db.batch();
+    ops.slice(i, i + CHUNK).forEach(op => {
+      if (op.type === "delete") batch.delete(op.ref);
+      else batch.set(op.ref, op.data);
+    });
+    await batch.commit();
+  }
+}
 function fmtDate(d) { return new Date(d+"T12:00:00").toLocaleDateString("fi-FI",{day:"numeric",month:"short",year:"numeric"}); }
 function todayStr() { return new Date().toISOString().split("T")[0]; }
 function nowTime() { return new Date().toLocaleTimeString("fi-FI",{hour:"2-digit",minute:"2-digit"}); }
@@ -36,7 +42,9 @@ function App() {
   const [pEx, setPEx] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [editingIdx, setEditingIdx] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const touchRef = useRef({x:0, y:0, t:0});
   const tabRef = useRef(tab);
   useEffect(() => { tabRef.current = tab; }, [tab]);
@@ -69,15 +77,49 @@ function App() {
   }, []);
 
   useEffect(() => {
-    storage.get(KEY).then(r => {
-      if (r) setWorkouts(JSON.parse(r.value).w || []);
-    }).catch(() => {}).finally(() => setLoaded(true));
+    const unsub = auth.onAuthStateChanged(u => { setUser(u); setAuthLoading(false); });
+    return unsub;
   }, []);
 
   useEffect(() => {
-    if (!loaded) return;
-    storage.set(KEY, JSON.stringify({w:workouts})).catch(() => {});
-  }, [workouts, loaded]);
+    if (!user) { setWorkouts([]); setLoaded(false); return; }
+    const col = db.collection("users").doc(user.uid).collection("workouts");
+    let unsub = () => {};
+    let cancelled = false;
+    (async () => {
+      try {
+        const probe = await col.limit(1).get();
+        if (probe.empty) {
+          try {
+            const raw = localStorage.getItem(KEY);
+            const local = raw ? (JSON.parse(raw).w || []) : [];
+            if (local.length) {
+              const base = Date.now() - local.length;
+              const ops = local.map((w, i) => {
+                const id = w.id || uid();
+                return {type:"set", ref: col.doc(id), data: Object.assign({}, w, {id, ts: base + i})};
+              });
+              await runBatched(ops);
+            }
+          } catch(e) {}
+        }
+      } catch(e) {}
+      if (cancelled) return;
+      unsub = col.orderBy("ts", "asc").onSnapshot(snap => {
+        setWorkouts(snap.docs.map(d => d.data()));
+        setLoaded(true);
+      }, () => setLoaded(true));
+    })();
+    return () => { cancelled = true; unsub(); };
+  }, [user]);
+
+  function signIn() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(() => {
+      auth.signInWithRedirect(provider).catch(() => showToast("Kirjautuminen epäonnistui"));
+    });
+  }
+  function signOutUser() { auth.signOut(); }
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(""), 2000); }
 
@@ -126,20 +168,23 @@ function App() {
       return {muscle:b.muscle, exercises:b.exercises.filter(e => e.name.trim()).map(e => ({name:e.name.trim(), sets:e.sets}))};
     }).filter(g => g.muscle === "Cardio" || g.exercises.length);
     if (!groups.length) { showToast("Lisää liike"); return; }
-    if (editingIdx !== null) {
-      setWorkouts(w => w.map((it, idx) => idx === editingIdx ? Object.assign({}, it, {groups}) : it));
-      setEditingIdx(null);
+    const col = db.collection("users").doc(user.uid).collection("workouts");
+    if (editingId !== null) {
+      const existing = workouts.find(w => w.id === editingId);
+      col.doc(editingId).set(Object.assign({}, existing, {groups})).catch(() => showToast("Tallennus epäonnistui"));
+      setEditingId(null);
       setBlocks([]);
       showToast("Päivitetty!");
     } else {
-      setWorkouts(w => [...w, {date:todayStr(), time:nowTime(), groups}]);
+      const id = uid();
+      col.doc(id).set({id, date:todayStr(), time:nowTime(), ts:Date.now(), groups}).catch(() => showToast("Tallennus epäonnistui"));
       setBlocks([]);
       showToast("Tallennettu!");
     }
   }
 
-  function editWorkout(i) {
-    const w = workouts[i];
+  function editWorkout(id) {
+    const w = workouts.find(x => x.id === id);
     if (!w) return;
     const newBlocks = (w.groups||[]).map(g => ({
       id: uid(),
@@ -153,21 +198,21 @@ function App() {
       cn: g.cn || ""
     }));
     setBlocks(newBlocks);
-    setEditingIdx(i);
+    setEditingId(id);
     setTab("log");
     setShowSettings(false);
     window.scrollTo(0, 0);
   }
 
   function cancelEdit() {
-    setEditingIdx(null);
+    setEditingId(null);
     setBlocks([]);
   }
 
-  function delW(i) {
+  function delW(id) {
     if (!confirm("Poistetaanko tämä treeni?")) return;
-    if (editingIdx === i) { setEditingIdx(null); setBlocks([]); }
-    setWorkouts(w => w.filter((_,idx) => idx !== i));
+    if (editingId === id) { setEditingId(null); setBlocks([]); }
+    db.collection("users").doc(user.uid).collection("workouts").doc(id).delete().catch(() => showToast("Poisto epäonnistui"));
   }
 
   function exportData() {
@@ -188,13 +233,21 @@ function App() {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async ev => {
       try {
         const parsed = JSON.parse(ev.target.result);
         const arr = parsed.w || parsed.workouts || parsed;
         if (!Array.isArray(arr)) throw new Error("Virheellinen muoto");
         if (!confirm("Korvataanko nykyiset "+workouts.length+" treeniä tiedoston "+arr.length+" treenillä?")) return;
-        setWorkouts(arr);
+        const col = db.collection("users").doc(user.uid).collection("workouts");
+        const existing = await col.get();
+        const base = Date.now() - arr.length;
+        const ops = existing.docs.map(d => ({type:"delete", ref: d.ref}))
+          .concat(arr.map((w, i) => {
+            const id = w.id || uid();
+            return {type:"set", ref: col.doc(id), data: Object.assign({}, w, {id, ts: base + i})};
+          }));
+        await runBatched(ops);
         setShowSettings(false);
         showToast("Tiedot tuotu!");
       } catch(err) {
@@ -274,6 +327,25 @@ function App() {
     histItem: {padding:"10px 0", borderBottom:"1px solid #252525"},
   };
 
+  if (authLoading) {
+    return <div style={{...c.wrap, display:"flex", alignItems:"center", justifyContent:"center"}}>Ladataan...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div style={{...c.wrap, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, minHeight:"100vh", textAlign:"center"}}>
+        <img src="icon-192.png" width="64" height="64" style={{borderRadius:14}} alt="" />
+        <h2 style={{margin:0}}>Sali</h2>
+        <div style={{fontSize:13, color:"#aaa", maxWidth:280}}>Kirjaudu sisään, jotta treenit synkkautuvat kaikille laitteillesi.</div>
+        <button style={{...c.savebtn, maxWidth:280}} onClick={signIn}>Kirjaudu Google-tilillä</button>
+      </div>
+    );
+  }
+
+  if (!loaded) {
+    return <div style={{...c.wrap, display:"flex", alignItems:"center", justifyContent:"center"}}>Ladataan...</div>;
+  }
+
   return (
     <div style={c.wrap}>
       <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16}}>
@@ -291,6 +363,10 @@ function App() {
         <div style={c.card}>
           <div style={c.label}>Asetukset</div>
           <div style={{fontSize:12, color:"#fff", marginBottom:10}}>
+            Kirjautuneena: {user.displayName || user.email}
+          </div>
+          <button style={{...c.abtn, marginTop:0, marginBottom:8}} onClick={signOutUser}>Kirjaudu ulos</button>
+          <div style={{fontSize:12, color:"#fff", marginBottom:10}}>
             Varmuuskopioi treenit tiedostoon tai palauta aiemmin tallennetusta tiedostosta.
           </div>
           <button style={{...c.abtn, marginTop:0, marginBottom:8}} onClick={exportData}>
@@ -305,15 +381,18 @@ function App() {
 
       {tab === "log" && (
         <div>
-          {editingIdx !== null && workouts[editingIdx] && (
-            <div style={{...c.card, borderLeft:"3px solid #fbbf24", background:"#1a1610"}}>
-              <div style={{fontSize:13, fontWeight:500, color:"#fbbf24"}}>Muokataan treeniä</div>
-              <div style={{fontSize:12, color:"#fff", marginTop:2}}>
-                {fmtDate(workouts[editingIdx].date)}
-                {workouts[editingIdx].time && " · " + workouts[editingIdx].time}
+          {editingId !== null && workouts.find(w => w.id === editingId) && (() => {
+            const ew = workouts.find(w => w.id === editingId);
+            return (
+              <div style={{...c.card, borderLeft:"3px solid #fbbf24", background:"#1a1610"}}>
+                <div style={{fontSize:13, fontWeight:500, color:"#fbbf24"}}>Muokataan treeniä</div>
+                <div style={{fontSize:12, color:"#fff", marginTop:2}}>
+                  {fmtDate(ew.date)}
+                  {ew.time && " · " + ew.time}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
           <div style={c.card}>
             <div style={c.label}>Valitse lihasryhmät</div>
             {Object.entries(GROUPS).map(([cat,muscles]) => (
@@ -404,9 +483,9 @@ function App() {
           {blocks.length > 0 && (
             <div>
               <button style={c.savebtn} onClick={saveWorkout}>
-                {editingIdx !== null ? "Päivitä treeni" : "Tallenna treeni"}
+                {editingId !== null ? "Päivitä treeni" : "Tallenna treeni"}
               </button>
-              {editingIdx !== null && (
+              {editingId !== null && (
                 <button style={{...c.abtn, marginTop:8}} onClick={cancelEdit}>Peruuta muokkaus</button>
               )}
             </div>
@@ -465,18 +544,17 @@ function App() {
 
           <div style={c.card}>
             {workouts.length === 0 && <div style={c.empty}>Ei treenejä</div>}
-            {[...workouts].reverse().map((w,ri) => {
-              const i = workouts.length-1-ri;
+            {[...workouts].reverse().map((w) => {
               return (
-                <div key={i} style={c.histItem}>
+                <div key={w.id} style={c.histItem}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
                     <span style={{fontWeight:500, fontSize:13}}>
                       {fmtDate(w.date)}
                       {w.time && <span style={{fontWeight:400, color:"#fff", fontSize:12, marginLeft:6}}>{w.time}</span>}
                     </span>
                     <div style={{display:"flex", gap:14}}>
-                      <button style={{...c.del, color:"#fbbf24", fontSize:16}} onClick={() => editWorkout(i)} title="Muokkaa">✎</button>
-                      <button style={c.del} onClick={() => delW(i)} title="Poista">🗑</button>
+                      <button style={{...c.del, color:"#fbbf24", fontSize:16}} onClick={() => editWorkout(w.id)} title="Muokkaa">✎</button>
+                      <button style={c.del} onClick={() => delW(w.id)} title="Poista">🗑</button>
                     </div>
                   </div>
                   <div style={{display:"flex", flexWrap:"wrap", gap:4, margin:"4px 0"}}>
