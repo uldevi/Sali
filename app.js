@@ -54,6 +54,7 @@ const C = {
 };
 
 const NAV_H = 60;
+const NAV_SAFE_H = "calc("+NAV_H+"px + env(safe-area-inset-bottom))";
 
 const S = {
   wrap: {fontFamily:"'Manrope',sans-serif", maxWidth:520, margin:"0 auto", color:C.text, minHeight:"100vh", display:"flex", flexDirection:"column"},
@@ -171,6 +172,7 @@ function Stepper({value, step, onChange}) {
     <div style={S.stepper}>
       <button type="button" className="press" style={S.stepBtn} onClick={() => bump(-step)} aria-label="Vähennä"><IconMinus size={13}/></button>
       <input style={S.stepInput} type="number" inputMode="decimal" step={step} value={value}
+        onFocus={e => e.target.select()}
         onChange={e => onChange(e.target.value)} />
       <button type="button" className="press" style={S.stepBtn} onClick={() => bump(step)} aria-label="Lisää"><IconPlus size={13}/></button>
     </div>
@@ -297,7 +299,12 @@ function App() {
     setBlocks(p => p.map(b => b.id === bid ? Object.assign({}, b, {exercises: b.exercises.map(e => e.id === eid ? Object.assign({}, e, {name:v}) : e)}) : b));
   }
   function addSet(bid, eid) {
-    setBlocks(p => p.map(b => b.id === bid ? Object.assign({}, b, {exercises: b.exercises.map(e => e.id === eid ? Object.assign({}, e, {sets:[...e.sets, newSet()]}) : e)}) : b));
+    setBlocks(p => p.map(b => b.id === bid ? Object.assign({}, b, {exercises: b.exercises.map(e => {
+      if (e.id !== eid) return e;
+      const last = e.sets[e.sets.length - 1];
+      const copy = last ? {id:uid(), reps:last.reps, weight:last.weight} : newSet();
+      return Object.assign({}, e, {sets:[...e.sets, copy]});
+    })}) : b));
   }
   function rmSet(bid, eid, sid) {
     setBlocks(p => p.map(b => b.id === bid ? Object.assign({}, b, {exercises: b.exercises.map(e => e.id === eid ? Object.assign({}, e, {sets: e.sets.filter(s => s.id !== sid)}) : e)}) : b));
@@ -439,7 +446,7 @@ function App() {
 
   return (
     <div style={S.wrap}>
-      <div style={{...S.scroll, paddingBottom: NAV_H + 24 + barH}}>
+      <div style={{...S.scroll, paddingBottom: "calc("+(24 + barH)+"px + "+NAV_SAFE_H+")"}}>
         <div style={S.header}>
           <div style={S.logoWrap}><img src="icon-192.png" width="36" height="36" alt="" /></div>
           <h1 style={S.brand}>Sali</h1>
@@ -676,7 +683,7 @@ function App() {
       </div>
 
       {showBar && (
-        <div style={{...S.savebar, bottom:NAV_H}}>
+        <div style={{...S.savebar, bottom:NAV_SAFE_H}}>
           <div style={S.savebarInner}>
             <button style={S.savebtn} className="press" onClick={saveWorkout}>
               {editingId !== null ? "Päivitä treeni" : "Tallenna treeni"}
@@ -718,7 +725,7 @@ function App() {
       )}
 
       {toast && (
-        <div style={{...S.toast, bottom: NAV_H + 16}}>
+        <div style={{...S.toast, bottom: "calc(16px + "+NAV_SAFE_H+")"}}>
           <IconCheck size={15} style={{color:C.accent}}/>{toast}
         </div>
       )}
