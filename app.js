@@ -1,12 +1,11 @@
 const { useState, useEffect, useRef } = React;
 const TABS = ["log", "history", "progress"];
 
-const GROUPS = {
-  Push: ["Rinta","Olkapäät","Ojentajat"],
-  Pull: ["Selkä","Hauikset"],
-  Legs: ["Jalat","Vatsat"],
-  Muut: ["Cardio"]
-};
+const MUSCLES = [
+  ["Rinta","Selkä"],
+  ["Olkapäät","Ojentajat","Hauikset"],
+  ["Jalat","Vatsat","Cardio"]
+];
 const KEY = "gym_v5";
 
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -38,20 +37,20 @@ function newBlock(muscle) { return {id:uid(),muscle,exercises:[newEx()],ct:"",cn
 // ---------- design tokens ----------
 
 const C = {
-  bg: "#140f0c",
-  bgElev: "#1c1612",
-  bgElev2: "#271e18",
-  border: "#33281f",
-  borderSoft: "#271f19",
-  text: "#f4ebe0",
-  textDim: "#ab9d8e",
-  textFaint: "#73685d",
-  accent: "#ff6a1f",
-  accentDim: "#c6500f",
-  accentSoft: "rgba(255,106,31,0.14)",
-  danger: "#ff5a52",
-  warn: "#ffb224",
-  success: "#9bd14c"
+  bg: "#121212",
+  bgElev: "#1a1a1a",
+  bgElev2: "#222222",
+  border: "#2e2e2e",
+  borderSoft: "#242424",
+  text: "#ededed",
+  textDim: "#9a9a9a",
+  textFaint: "#6b6b6b",
+  accent: "#c9c9c9",
+  accentDim: "#8f8f8f",
+  accentSoft: "rgba(201,201,201,0.10)",
+  danger: "#d9534f",
+  warn: "#c9a227",
+  success: "#7aa863"
 };
 
 const NAV_H = 60;
@@ -60,74 +59,73 @@ const S = {
   wrap: {fontFamily:"'Manrope',sans-serif", maxWidth:520, margin:"0 auto", color:C.text, minHeight:"100vh", display:"flex", flexDirection:"column"},
   scroll: {padding:"14px 14px 0", flex:1},
   header: {display:"flex", alignItems:"center", gap:10, marginBottom:18},
-  logoWrap: {width:36, height:36, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 0 1px "+C.border+", 0 4px 14px rgba(255,106,31,0.18)", flexShrink:0, overflow:"hidden"},
+  logoWrap: {width:36, height:36, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 0 1px "+C.border, flexShrink:0, overflow:"hidden"},
   brand: {fontFamily:"'Oswald',sans-serif", fontSize:21, fontWeight:600, letterSpacing:"0.04em", textTransform:"uppercase", color:C.text, margin:0, flex:1},
-  iconBtn: {width:38, height:38, borderRadius:10, border:"1px solid "+C.border, background:C.bgElev, color:C.textDim, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0},
+  iconBtn: {width:38, height:38, borderRadius:7, border:"1px solid "+C.border, background:C.bgElev, color:C.textDim, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0},
 
-  card: {background:C.bgElev, border:"1px solid "+C.border, borderRadius:14, padding:"14px", marginBottom:12},
-  cardEditing: {background:"#231a12", border:"1px solid #4a371f", borderLeft:"3px solid "+C.warn, borderRadius:14, padding:"12px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10},
-  cardBlock: {background:C.bgElev, border:"1px solid "+C.border, borderLeft:"3px solid "+C.accent, borderRadius:14, padding:"14px", marginBottom:12},
+  card: {background:C.bgElev, border:"1px solid "+C.border, borderRadius:6, padding:"14px", marginBottom:12},
+  cardEditing: {background:C.bgElev, border:"1px solid "+C.border, borderRadius:6, padding:"12px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10},
+  cardBlock: {background:C.bgElev, border:"1px solid "+C.border, borderRadius:6, padding:"14px", marginBottom:12},
 
   label: {fontSize:11, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700, marginBottom:10},
-  catLabel: {fontSize:11, color:C.textDim, marginBottom:6, fontWeight:600},
 
-  mBtn: a => ({padding:"7px 13px", borderRadius:9, border:"1px solid "+(a?"transparent":C.border), background:a?C.accent:C.bgElev2, color:a?"#1a0e05":C.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5}),
+  mBtn: a => ({padding:"7px 13px", borderRadius:5, border:"1px solid "+(a?C.accent:C.border), background:a?C.accent:C.bgElev2, color:a?"#141414":C.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5}),
 
-  inp: {height:38, padding:"0 10px", border:"1px solid "+C.border, borderRadius:9, fontSize:14, background:C.bgElev2, color:C.text, width:"100%"},
-  textarea: {padding:"8px 10px", border:"1px solid "+C.border, borderRadius:9, fontSize:14, background:C.bgElev2, color:C.text, width:"100%", height:60, resize:"none"},
+  inp: {height:38, padding:"0 10px", border:"1px solid "+C.border, borderRadius:5, fontSize:14, background:C.bgElev2, color:C.text, width:"100%"},
+  textarea: {padding:"8px 10px", border:"1px solid "+C.border, borderRadius:5, fontSize:14, background:C.bgElev2, color:C.text, width:"100%", height:60, resize:"none"},
 
-  exBox: {background:C.bgElev2, borderRadius:11, padding:"11px", marginBottom:9, border:"1px solid "+C.borderSoft},
-  chip: {fontSize:11.5, padding:"4px 10px", borderRadius:16, background:C.bg, color:C.textDim, border:"1px solid "+C.border, cursor:"pointer"},
+  exBox: {background:C.bgElev2, borderRadius:5, padding:"11px", marginBottom:9, border:"1px solid "+C.borderSoft},
+  chip: {fontSize:11.5, padding:"4px 10px", borderRadius:4, background:C.bg, color:C.textDim, border:"1px solid "+C.border, cursor:"pointer"},
 
   setHeaderRow: {display:"flex", gap:6, marginBottom:5, paddingLeft:28},
   setHeaderCell: {width:98, textAlign:"center", fontSize:9.5, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700},
   setRow: {display:"flex", alignItems:"center", gap:6, marginBottom:6},
-  setBadge: {width:22, height:22, borderRadius:"50%", background:C.bg, color:C.textDim, fontSize:10.5, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0},
-  stepper: {display:"flex", alignItems:"center", background:C.bg, border:"1px solid "+C.border, borderRadius:9, overflow:"hidden", width:98, flexShrink:0},
+  setBadge: {width:22, height:22, borderRadius:4, background:C.bg, color:C.textDim, fontSize:10.5, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0},
+  stepper: {display:"flex", alignItems:"center", background:C.bg, border:"1px solid "+C.border, borderRadius:5, overflow:"hidden", width:98, flexShrink:0},
   stepBtn: {width:28, height:32, border:"none", background:"transparent", color:C.textDim, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, padding:0},
   stepInput: {width:42, height:32, border:"none", background:"transparent", color:C.text, textAlign:"center", fontSize:13.5, fontWeight:600, padding:0, flex:1, minWidth:0},
   delIcon: {background:"none", border:"none", cursor:"pointer", color:C.textFaint, display:"flex", alignItems:"center", justifyContent:"center", padding:5, marginLeft:"auto", flexShrink:0},
 
-  sbtn: {padding:"7px 12px", borderRadius:8, border:"1px solid "+C.border, background:"transparent", fontSize:12.5, cursor:"pointer", color:C.textDim, marginTop:2, display:"inline-flex", alignItems:"center", gap:5, fontWeight:600},
-  abtn: {width:"100%", padding:"10px", borderRadius:10, border:"1px dashed "+C.border, background:"transparent", fontSize:13.5, cursor:"pointer", color:C.textDim, marginTop:4, display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontWeight:600},
+  sbtn: {padding:"7px 12px", borderRadius:5, border:"1px solid "+C.border, background:"transparent", fontSize:12.5, cursor:"pointer", color:C.textDim, marginTop:2, display:"inline-flex", alignItems:"center", gap:5, fontWeight:600},
+  abtn: {width:"100%", padding:"10px", borderRadius:5, border:"1px dashed "+C.border, background:"transparent", fontSize:13.5, cursor:"pointer", color:C.textDim, marginTop:4, display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontWeight:600},
 
-  tag: {fontSize:11, padding:"3px 10px", borderRadius:20, background:C.accentSoft, color:C.accent, fontWeight:700},
+  tag: {fontSize:11, padding:"3px 9px", borderRadius:4, background:C.bgElev2, color:C.textDim, fontWeight:700, border:"1px solid "+C.border},
   empty: {textAlign:"center", color:C.textFaint, padding:"2.2rem 0", fontSize:13.5},
 
   stats: {display:"flex", gap:8, marginBottom:12},
-  stat: {flex:1, background:C.bgElev, border:"1px solid "+C.border, borderRadius:12, padding:"12px 8px", textAlign:"center"},
+  stat: {flex:1, background:C.bgElev, border:"1px solid "+C.border, borderRadius:6, padding:"12px 8px", textAlign:"center"},
   statNum: {fontFamily:"'Oswald',sans-serif", fontSize:24, fontWeight:600, lineHeight:1},
   statLabel: {fontSize:10, color:C.textFaint, marginTop:4, textTransform:"uppercase", letterSpacing:"0.05em", fontWeight:600},
 
   calGrid: {display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:3},
-  histItem: {background:C.bgElev, border:"1px solid "+C.border, borderRadius:13, padding:"12px 13px", marginBottom:9},
+  histItem: {background:C.bgElev, border:"1px solid "+C.border, borderRadius:6, padding:"12px 13px", marginBottom:9},
 
-  toast: {position:"fixed", left:"50%", transform:"translateX(-50%)", background:C.bgElev2, border:"1px solid "+C.border, color:C.text, padding:"10px 18px", borderRadius:11, fontSize:13, zIndex:999, whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:8, boxShadow:"0 8px 24px rgba(0,0,0,0.4)"},
+  toast: {position:"fixed", left:"50%", transform:"translateX(-50%)", background:C.bgElev2, border:"1px solid "+C.border, color:C.text, padding:"10px 18px", borderRadius:5, fontSize:13, zIndex:999, whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:8, boxShadow:"0 8px 24px rgba(0,0,0,0.4)"},
 
-  nav: {position:"fixed", left:0, right:0, bottom:0, background:"rgba(20,15,12,0.92)", backdropFilter:"blur(10px)", borderTop:"1px solid "+C.border, paddingBottom:"env(safe-area-inset-bottom)", zIndex:50},
+  nav: {position:"fixed", left:0, right:0, bottom:0, background:"rgba(18,18,18,0.92)", backdropFilter:"blur(10px)", borderTop:"1px solid "+C.border, paddingBottom:"env(safe-area-inset-bottom)", zIndex:50},
   navInner: {maxWidth:520, margin:"0 auto", display:"flex", height:NAV_H},
   navItem: a => ({flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:a?C.accent:C.textFaint, position:"relative"}),
   navLabel: {fontSize:10.5, fontWeight:700, letterSpacing:"0.02em"},
-  navIndicator: {position:"absolute", top:0, left:"30%", right:"30%", height:2.5, borderRadius:2, background:C.accent},
+  navIndicator: {position:"absolute", top:0, left:"38%", right:"38%", height:2, background:C.accent},
 
   sheetBackdrop: {position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:100, display:"flex", alignItems:"flex-end"},
-  sheet: {width:"100%", maxWidth:520, margin:"0 auto", background:C.bgElev, borderRadius:"18px 18px 0 0", border:"1px solid "+C.border, borderBottom:"none", padding:"10px 20px calc(24px + env(safe-area-inset-bottom))", textAlign:"center"},
+  sheet: {width:"100%", maxWidth:520, margin:"0 auto", background:C.bgElev, borderRadius:"8px 8px 0 0", border:"1px solid "+C.border, borderBottom:"none", padding:"10px 20px calc(24px + env(safe-area-inset-bottom))", textAlign:"center"},
   sheetHandle: {width:36, height:4, borderRadius:3, background:C.border, margin:"4px auto 18px"},
-  avatar: {width:56, height:56, borderRadius:"50%", background:"linear-gradient(135deg,"+C.accent+","+C.accentDim+")", color:"#1a0e05", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Oswald',sans-serif", fontSize:22, fontWeight:600, margin:"0 auto 12px"},
+  avatar: {width:56, height:56, borderRadius:6, background:C.bgElev2, border:"1px solid "+C.border, color:C.text, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Oswald',sans-serif", fontSize:22, fontWeight:600, margin:"0 auto 12px"},
   sheetName: {fontSize:15, fontWeight:700, color:C.text},
   sheetEmail: {fontSize:12.5, color:C.textFaint, marginBottom:20},
-  dangerBtn: {width:"100%", padding:"12px", borderRadius:10, border:"1px solid rgba(255,90,82,0.3)", background:"rgba(255,90,82,0.08)", color:C.danger, fontSize:14, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8},
+  dangerBtn: {width:"100%", padding:"12px", borderRadius:5, border:"1px solid rgba(217,83,79,0.3)", background:"rgba(217,83,79,0.08)", color:C.danger, fontSize:14, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8},
 
   savebar: {position:"fixed", left:0, right:0, background:C.bg, borderTop:"1px solid "+C.border, padding:"10px 14px", zIndex:40},
   savebarInner: {maxWidth:520, margin:"0 auto"},
-  savebtn: {width:"100%", padding:13, borderRadius:11, border:"none", background:"linear-gradient(135deg,"+C.accent+","+C.accentDim+")", color:"#1a0e05", fontSize:14.5, fontWeight:700, cursor:"pointer"},
-  cancelbtn: {width:"100%", padding:10, borderRadius:10, border:"none", background:"transparent", color:C.textFaint, fontSize:13, cursor:"pointer", marginTop:6, fontWeight:600},
+  savebtn: {width:"100%", padding:13, borderRadius:5, border:"1px solid "+C.accent, background:C.accent, color:"#141414", fontSize:14.5, fontWeight:700, cursor:"pointer"},
+  cancelbtn: {width:"100%", padding:10, borderRadius:5, border:"none", background:"transparent", color:C.textFaint, fontSize:13, cursor:"pointer", marginTop:6, fontWeight:600},
 
   authWrap: {minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, textAlign:"center", padding:24, fontFamily:"'Manrope',sans-serif", color:C.text},
-  authLogo: {width:72, height:72, borderRadius:18, boxShadow:"0 0 0 1px "+C.border+", 0 10px 30px rgba(255,106,31,0.22)", overflow:"hidden"},
+  authLogo: {width:72, height:72, borderRadius:10, boxShadow:"0 0 0 1px "+C.border, overflow:"hidden"},
   authTitle: {fontFamily:"'Oswald',sans-serif", fontSize:28, fontWeight:600, letterSpacing:"0.04em", textTransform:"uppercase", margin:0},
   authSub: {fontSize:13.5, color:C.textDim, maxWidth:280, lineHeight:1.5},
-  authBtn: {padding:"13px 28px", borderRadius:11, border:"none", background:"linear-gradient(135deg,"+C.accent+","+C.accentDim+")", color:"#1a0e05", fontSize:14.5, fontWeight:700, cursor:"pointer"},
+  authBtn: {padding:"13px 28px", borderRadius:5, border:"1px solid "+C.accent, background:C.accent, color:"#141414", fontSize:14.5, fontWeight:700, cursor:"pointer"},
   authFoot: {fontSize:11.5, color:C.textFaint, maxWidth:260},
 
   spinner: {width:32, height:32, borderRadius:"50%", border:"3px solid "+C.borderSoft, borderTopColor:C.accent}
@@ -468,19 +466,16 @@ function App() {
             })()}
             <div style={S.card}>
               <div style={S.label}>Valitse lihasryhmät</div>
-              {Object.entries(GROUPS).map(([cat,muscles]) => (
-                <div key={cat} style={{marginBottom:10}}>
-                  <div style={S.catLabel}>{cat}</div>
-                  <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
-                    {muscles.map(m => {
-                      const a = selMuscles.includes(m);
-                      return (
-                        <button key={m} className="press" style={S.mBtn(a)} onClick={() => toggleMuscle(m)}>
-                          {a ? <IconCheck size={13}/> : <IconPlus size={13}/>}{m}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {MUSCLES.map((row, ri) => (
+                <div key={ri} style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom: ri < MUSCLES.length-1 ? 8 : 0}}>
+                  {row.map(m => {
+                    const a = selMuscles.includes(m);
+                    return (
+                      <button key={m} className="press" style={S.mBtn(a)} onClick={() => toggleMuscle(m)}>
+                        {a ? <IconCheck size={13}/> : <IconPlus size={13}/>}{m}
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -538,7 +533,7 @@ function App() {
                           <div key={s.id} style={S.setRow}>
                             <span style={S.setBadge}>{si+1}</span>
                             <Stepper value={s.reps} step={1} onChange={v => updSet(block.id, ex.id, s.id, "reps", v)} />
-                            <Stepper value={s.weight} step={0.5} onChange={v => updSet(block.id, ex.id, s.id, "weight", v)} />
+                            <Stepper value={s.weight} step={2} onChange={v => updSet(block.id, ex.id, s.id, "weight", v)} />
                             <button style={S.delIcon} className="press" onClick={() => rmSet(block.id, ex.id, s.id)} aria-label="Poista sarja"><IconX size={14}/></button>
                           </div>
                         ))}
@@ -573,7 +568,7 @@ function App() {
                       aspectRatio:"1", borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center",
                       fontSize:11, fontWeight:isT?700:500,
                       background:info?C.accent:"transparent",
-                      color:info?"#1a0e05":C.textDim,
+                      color:info?"#141414":C.textDim,
                       boxShadow:isT && !info ? "inset 0 0 0 1.5px "+C.accent : "none"
                     }}>{d}</div>
                   );
