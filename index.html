@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Gym Tracker</title>
-<meta name="theme-color" content="#0a0a0a" />
-<meta name="description" content="Personal gym workout tracker" />
+<title>Sali</title>
+<meta name="theme-color" content="#140f0c" />
+<meta name="description" content="Henkilökohtainen treenipäiväkirja" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
@@ -13,16 +13,31 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Gym" />
+<meta name="apple-mobile-web-app-title" content="Sali" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  html, body { margin:0; padding:0; background:#0a0a0a; color:#fff; -webkit-tap-highlight-color:transparent; overscroll-behavior-x: none; }
-  body { font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); min-height: 100vh; }
-  input, textarea, select, button { font-family: inherit; -webkit-appearance: none; appearance: none; color: #fff; }
-  input::placeholder, textarea::placeholder { color: #888; }
-  select option { background: #1a1a1a; color: #fff; }
+  html, body { margin:0; padding:0; background:#140f0c; color:#f4ebe0; -webkit-tap-highlight-color:transparent; overscroll-behavior-x: none; }
+  body { font-family: 'Manrope', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; padding-top: env(safe-area-inset-top); min-height: 100vh; }
+  input, textarea, select, button { font-family: inherit; -webkit-appearance: none; appearance: none; color: #f4ebe0; }
+  input::placeholder, textarea::placeholder { color: #6e6257; }
+  select option { background: #1c1612; color: #f4ebe0; }
   input[type="number"] { -moz-appearance: textfield; }
   input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  button { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
   * { box-sizing: border-box; }
+  ::selection { background: rgba(255,106,31,0.35); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  @keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fadeSlide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .spin-anim { animation: spin 0.8s linear infinite; }
+  .sheet-anim { animation: sheetUp .24s cubic-bezier(.2,.8,.2,1); }
+  .backdrop-anim { animation: backdropIn .18s ease; }
+  .fade-anim { animation: fadeSlide .2s ease; }
+  .press { transition: transform .1s ease; }
+  .press:active { transform: scale(0.95); }
 </style>
 </head>
 <body>

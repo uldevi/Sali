@@ -15,6 +15,7 @@ const db = firebase.firestore();
 db.enablePersistence().catch(() => {});
 
 function uid() { return Math.random().toString(36).slice(2); }
+function haptic() { try { navigator.vibrate && navigator.vibrate(8); } catch(e) {} }
 
 async function runBatched(ops) {
   const CHUNK = 400;
@@ -33,6 +34,159 @@ function nowTime() { return new Date().toLocaleTimeString("fi-FI",{hour:"2-digit
 function newSet() { return {id:uid(),reps:"",weight:""}; }
 function newEx() { return {id:uid(),name:"",sets:[newSet()]}; }
 function newBlock(muscle) { return {id:uid(),muscle,exercises:[newEx()],ct:"",cn:""}; }
+
+// ---------- design tokens ----------
+
+const C = {
+  bg: "#140f0c",
+  bgElev: "#1c1612",
+  bgElev2: "#271e18",
+  border: "#33281f",
+  borderSoft: "#271f19",
+  text: "#f4ebe0",
+  textDim: "#ab9d8e",
+  textFaint: "#73685d",
+  accent: "#ff6a1f",
+  accentDim: "#c6500f",
+  accentSoft: "rgba(255,106,31,0.14)",
+  danger: "#ff5a52",
+  warn: "#ffb224",
+  success: "#9bd14c"
+};
+
+const NAV_H = 60;
+
+const S = {
+  wrap: {fontFamily:"'Manrope',sans-serif", maxWidth:520, margin:"0 auto", color:C.text, minHeight:"100vh", display:"flex", flexDirection:"column"},
+  scroll: {padding:"14px 14px 0", flex:1},
+  header: {display:"flex", alignItems:"center", gap:10, marginBottom:18},
+  logoWrap: {width:36, height:36, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 0 1px "+C.border+", 0 4px 14px rgba(255,106,31,0.18)", flexShrink:0, overflow:"hidden"},
+  brand: {fontFamily:"'Oswald',sans-serif", fontSize:21, fontWeight:600, letterSpacing:"0.04em", textTransform:"uppercase", color:C.text, margin:0, flex:1},
+  iconBtn: {width:38, height:38, borderRadius:10, border:"1px solid "+C.border, background:C.bgElev, color:C.textDim, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0},
+
+  card: {background:C.bgElev, border:"1px solid "+C.border, borderRadius:14, padding:"14px", marginBottom:12},
+  cardEditing: {background:"#231a12", border:"1px solid #4a371f", borderLeft:"3px solid "+C.warn, borderRadius:14, padding:"12px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10},
+  cardBlock: {background:C.bgElev, border:"1px solid "+C.border, borderLeft:"3px solid "+C.accent, borderRadius:14, padding:"14px", marginBottom:12},
+
+  label: {fontSize:11, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700, marginBottom:10},
+  catLabel: {fontSize:11, color:C.textDim, marginBottom:6, fontWeight:600},
+
+  mBtn: a => ({padding:"7px 13px", borderRadius:9, border:"1px solid "+(a?"transparent":C.border), background:a?C.accent:C.bgElev2, color:a?"#1a0e05":C.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5}),
+
+  inp: {height:38, padding:"0 10px", border:"1px solid "+C.border, borderRadius:9, fontSize:14, background:C.bgElev2, color:C.text, width:"100%"},
+  textarea: {padding:"8px 10px", border:"1px solid "+C.border, borderRadius:9, fontSize:14, background:C.bgElev2, color:C.text, width:"100%", height:60, resize:"none"},
+
+  exBox: {background:C.bgElev2, borderRadius:11, padding:"11px", marginBottom:9, border:"1px solid "+C.borderSoft},
+  chip: {fontSize:11.5, padding:"4px 10px", borderRadius:16, background:C.bg, color:C.textDim, border:"1px solid "+C.border, cursor:"pointer"},
+
+  setHeaderRow: {display:"flex", gap:6, marginBottom:5, paddingLeft:28},
+  setHeaderCell: {width:98, textAlign:"center", fontSize:9.5, color:C.textFaint, textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700},
+  setRow: {display:"flex", alignItems:"center", gap:6, marginBottom:6},
+  setBadge: {width:22, height:22, borderRadius:"50%", background:C.bg, color:C.textDim, fontSize:10.5, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0},
+  stepper: {display:"flex", alignItems:"center", background:C.bg, border:"1px solid "+C.border, borderRadius:9, overflow:"hidden", width:98, flexShrink:0},
+  stepBtn: {width:28, height:32, border:"none", background:"transparent", color:C.textDim, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, padding:0},
+  stepInput: {width:42, height:32, border:"none", background:"transparent", color:C.text, textAlign:"center", fontSize:13.5, fontWeight:600, padding:0, flex:1, minWidth:0},
+  delIcon: {background:"none", border:"none", cursor:"pointer", color:C.textFaint, display:"flex", alignItems:"center", justifyContent:"center", padding:5, marginLeft:"auto", flexShrink:0},
+
+  sbtn: {padding:"7px 12px", borderRadius:8, border:"1px solid "+C.border, background:"transparent", fontSize:12.5, cursor:"pointer", color:C.textDim, marginTop:2, display:"inline-flex", alignItems:"center", gap:5, fontWeight:600},
+  abtn: {width:"100%", padding:"10px", borderRadius:10, border:"1px dashed "+C.border, background:"transparent", fontSize:13.5, cursor:"pointer", color:C.textDim, marginTop:4, display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontWeight:600},
+
+  tag: {fontSize:11, padding:"3px 10px", borderRadius:20, background:C.accentSoft, color:C.accent, fontWeight:700},
+  empty: {textAlign:"center", color:C.textFaint, padding:"2.2rem 0", fontSize:13.5},
+
+  stats: {display:"flex", gap:8, marginBottom:12},
+  stat: {flex:1, background:C.bgElev, border:"1px solid "+C.border, borderRadius:12, padding:"12px 8px", textAlign:"center"},
+  statNum: {fontFamily:"'Oswald',sans-serif", fontSize:24, fontWeight:600, lineHeight:1},
+  statLabel: {fontSize:10, color:C.textFaint, marginTop:4, textTransform:"uppercase", letterSpacing:"0.05em", fontWeight:600},
+
+  calGrid: {display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:3},
+  histItem: {background:C.bgElev, border:"1px solid "+C.border, borderRadius:13, padding:"12px 13px", marginBottom:9},
+
+  toast: {position:"fixed", left:"50%", transform:"translateX(-50%)", background:C.bgElev2, border:"1px solid "+C.border, color:C.text, padding:"10px 18px", borderRadius:11, fontSize:13, zIndex:999, whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:8, boxShadow:"0 8px 24px rgba(0,0,0,0.4)"},
+
+  nav: {position:"fixed", left:0, right:0, bottom:0, background:"rgba(20,15,12,0.92)", backdropFilter:"blur(10px)", borderTop:"1px solid "+C.border, paddingBottom:"env(safe-area-inset-bottom)", zIndex:50},
+  navInner: {maxWidth:520, margin:"0 auto", display:"flex", height:NAV_H},
+  navItem: a => ({flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:a?C.accent:C.textFaint, position:"relative"}),
+  navLabel: {fontSize:10.5, fontWeight:700, letterSpacing:"0.02em"},
+  navIndicator: {position:"absolute", top:0, left:"30%", right:"30%", height:2.5, borderRadius:2, background:C.accent},
+
+  sheetBackdrop: {position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:100, display:"flex", alignItems:"flex-end"},
+  sheet: {width:"100%", maxWidth:520, margin:"0 auto", background:C.bgElev, borderRadius:"18px 18px 0 0", border:"1px solid "+C.border, borderBottom:"none", padding:"10px 20px calc(24px + env(safe-area-inset-bottom))", textAlign:"center"},
+  sheetHandle: {width:36, height:4, borderRadius:3, background:C.border, margin:"4px auto 18px"},
+  avatar: {width:56, height:56, borderRadius:"50%", background:"linear-gradient(135deg,"+C.accent+","+C.accentDim+")", color:"#1a0e05", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Oswald',sans-serif", fontSize:22, fontWeight:600, margin:"0 auto 12px"},
+  sheetName: {fontSize:15, fontWeight:700, color:C.text},
+  sheetEmail: {fontSize:12.5, color:C.textFaint, marginBottom:20},
+  dangerBtn: {width:"100%", padding:"12px", borderRadius:10, border:"1px solid rgba(255,90,82,0.3)", background:"rgba(255,90,82,0.08)", color:C.danger, fontSize:14, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8},
+
+  savebar: {position:"fixed", left:0, right:0, background:C.bg, borderTop:"1px solid "+C.border, padding:"10px 14px", zIndex:40},
+  savebarInner: {maxWidth:520, margin:"0 auto"},
+  savebtn: {width:"100%", padding:13, borderRadius:11, border:"none", background:"linear-gradient(135deg,"+C.accent+","+C.accentDim+")", color:"#1a0e05", fontSize:14.5, fontWeight:700, cursor:"pointer"},
+  cancelbtn: {width:"100%", padding:10, borderRadius:10, border:"none", background:"transparent", color:C.textFaint, fontSize:13, cursor:"pointer", marginTop:6, fontWeight:600},
+
+  authWrap: {minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, textAlign:"center", padding:24, fontFamily:"'Manrope',sans-serif", color:C.text},
+  authLogo: {width:72, height:72, borderRadius:18, boxShadow:"0 0 0 1px "+C.border+", 0 10px 30px rgba(255,106,31,0.22)", overflow:"hidden"},
+  authTitle: {fontFamily:"'Oswald',sans-serif", fontSize:28, fontWeight:600, letterSpacing:"0.04em", textTransform:"uppercase", margin:0},
+  authSub: {fontSize:13.5, color:C.textDim, maxWidth:280, lineHeight:1.5},
+  authBtn: {padding:"13px 28px", borderRadius:11, border:"none", background:"linear-gradient(135deg,"+C.accent+","+C.accentDim+")", color:"#1a0e05", fontSize:14.5, fontWeight:700, cursor:"pointer"},
+  authFoot: {fontSize:11.5, color:C.textFaint, maxWidth:260},
+
+  spinner: {width:32, height:32, borderRadius:"50%", border:"3px solid "+C.borderSoft, borderTopColor:C.accent}
+};
+
+// ---------- icons ----------
+
+function Icon({children, size=19, style}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+      {children}
+    </svg>
+  );
+}
+function IconPlus(p){ return <Icon {...p}><path d="M12 5v14M5 12h14"/></Icon>; }
+function IconMinus(p){ return <Icon {...p}><path d="M5 12h14"/></Icon>; }
+function IconDumbbell(p){ return <Icon {...p}><path d="M6.5 6.5l11 11M4 9l2.5-2.5M20 15l-2.5 2.5M2.5 7.5l2 2M19.5 16.5l2 2M7 4l2 2M15 18l2 2"/></Icon>; }
+function IconClock(p){ return <Icon {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3.2 2"/></Icon>; }
+function IconTrending(p){ return <Icon {...p}><path d="M3 17l6-6 4 4 7-8"/><path d="M15 7h6v6"/></Icon>; }
+function IconSettings(p){ return <Icon {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></Icon>; }
+function IconX(p){ return <Icon {...p}><path d="M18 6L6 18M6 6l12 12"/></Icon>; }
+function IconTrash(p){ return <Icon {...p}><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z"/></Icon>; }
+function IconEdit(p){ return <Icon {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></Icon>; }
+function IconCheck(p){ return <Icon {...p}><path d="M20 6L9 17l-5-5"/></Icon>; }
+function IconLogOut(p){ return <Icon {...p}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></Icon>; }
+
+const NAV_ITEMS = [
+  ["log","Treeni",IconPlus],
+  ["history","Historia",IconClock],
+  ["progress","Progressio",IconTrending]
+];
+
+function Stepper({value, step, onChange}) {
+  function bump(delta) {
+    const cur = parseFloat(value) || 0;
+    let next = Math.round((cur + delta) * 100) / 100;
+    if (next < 0) next = 0;
+    onChange(String(next));
+    haptic();
+  }
+  return (
+    <div style={S.stepper}>
+      <button type="button" className="press" style={S.stepBtn} onClick={() => bump(-step)} aria-label="Vähennä"><IconMinus size={13}/></button>
+      <input style={S.stepInput} type="number" inputMode="decimal" step={step} value={value}
+        onChange={e => onChange(e.target.value)} />
+      <button type="button" className="press" style={S.stepBtn} onClick={() => bump(step)} aria-label="Lisää"><IconPlus size={13}/></button>
+    </div>
+  );
+}
+
+function Spinner({label}) {
+  return (
+    <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:12, padding:"40px 0"}}>
+      <div className="spin-anim" style={S.spinner} />
+      {label && <div style={{color:C.textFaint, fontSize:13}}>{label}</div>}
+    </div>
+  );
+}
 
 function App() {
   const [tab, setTab] = useState("log");
@@ -126,12 +280,13 @@ function App() {
   const selMuscles = blocks.map(b => b.muscle);
 
   function toggleMuscle(m) {
+    haptic();
     const idx = blocks.findIndex(b => b.muscle === m);
     if (idx >= 0) setBlocks(p => p.filter(b => b.muscle !== m));
     else setBlocks(p => [...p, newBlock(m)]);
   }
 
-  function rmBlock(id) { setBlocks(p => p.filter(b => b.id !== id)); }
+  function rmBlock(id) { haptic(); setBlocks(p => p.filter(b => b.id !== id)); }
   function updBlock(id, f, v) { setBlocks(p => p.map(b => b.id === id ? Object.assign({}, b, {[f]:v}) : b)); }
 
   function addEx(bid) {
@@ -168,6 +323,7 @@ function App() {
       return {muscle:b.muscle, exercises:b.exercises.filter(e => e.name.trim()).map(e => ({name:e.name.trim(), sets:e.sets}))};
     }).filter(g => g.muscle === "Cardio" || g.exercises.length);
     if (!groups.length) { showToast("Lisää liike"); return; }
+    haptic();
     const col = db.collection("users").doc(user.uid).collection("workouts");
     if (editingId !== null) {
       const existing = workouts.find(w => w.id === editingId);
@@ -186,6 +342,7 @@ function App() {
   function editWorkout(id) {
     const w = workouts.find(x => x.id === id);
     if (!w) return;
+    haptic();
     const newBlocks = (w.groups||[]).map(g => ({
       id: uid(),
       muscle: g.muscle,
@@ -211,51 +368,9 @@ function App() {
 
   function delW(id) {
     if (!confirm("Poistetaanko tämä treeni?")) return;
+    haptic();
     if (editingId === id) { setEditingId(null); setBlocks([]); }
     db.collection("users").doc(user.uid).collection("workouts").doc(id).delete().catch(() => showToast("Poisto epäonnistui"));
-  }
-
-  function exportData() {
-    const data = JSON.stringify({w:workouts}, null, 2);
-    const blob = new Blob([data], {type:"application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "sali-varmuuskopio-"+todayStr()+".json";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("Varmuuskopio ladattu");
-  }
-
-  function importData(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async ev => {
-      try {
-        const parsed = JSON.parse(ev.target.result);
-        const arr = parsed.w || parsed.workouts || parsed;
-        if (!Array.isArray(arr)) throw new Error("Virheellinen muoto");
-        if (!confirm("Korvataanko nykyiset "+workouts.length+" treeniä tiedoston "+arr.length+" treenillä?")) return;
-        const col = db.collection("users").doc(user.uid).collection("workouts");
-        const existing = await col.get();
-        const base = Date.now() - arr.length;
-        const ops = existing.docs.map(d => ({type:"delete", ref: d.ref}))
-          .concat(arr.map((w, i) => {
-            const id = w.id || uid();
-            return {type:"set", ref: col.doc(id), data: Object.assign({}, w, {id, ts: base + i})};
-          }));
-        await runBatched(ops);
-        setShowSettings(false);
-        showToast("Tiedot tuotu!");
-      } catch(err) {
-        showToast("Virheellinen tiedosto");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
   }
 
   const allEx = [...new Set(workouts.flatMap(w => (w.groups||[]).flatMap(g => (g.exercises||[]).map(e => e.name))))].filter(Boolean).sort();
@@ -281,12 +396,12 @@ function App() {
 
   const last30 = Date.now() - 30*24*3600*1000;
   const recent30 = workouts.filter(w => new Date(w.date+"T12:00:00").getTime() > last30).length;
-  let consLabel = "Heikko", consColor = "#ff6b6b";
-  if (workouts.length === 0) { consLabel = "—"; consColor = "#666"; }
-  else if (recent30 >= 12) { consLabel = "Erinomainen"; consColor = "#4ade80"; }
-  else if (recent30 >= 8) { consLabel = "Hyvä"; consColor = "#86efac"; }
-  else if (recent30 >= 4) { consLabel = "Kohtalainen"; consColor = "#fbbf24"; }
-  else { consLabel = "Heikko"; consColor = "#ff6b6b"; }
+  let consLabel = "Heikko", consColor = C.danger;
+  if (workouts.length === 0) { consLabel = "—"; consColor = C.textFaint; }
+  else if (recent30 >= 12) { consLabel = "Erinomainen"; consColor = C.success; }
+  else if (recent30 >= 8) { consLabel = "Hyvä"; consColor = "#c3e08a"; }
+  else if (recent30 >= 4) { consLabel = "Kohtalainen"; consColor = C.warn; }
+  else { consLabel = "Heikko"; consColor = C.danger; }
 
   const now = new Date();
   const yr = now.getFullYear(), mo = now.getMonth();
@@ -301,330 +416,315 @@ function App() {
     }
   });
 
-  const c = {
-    wrap: {padding:"12px", fontFamily:"system-ui,sans-serif", maxWidth:500, margin:"0 auto", color:"#fff", minHeight:"100vh"},
-    tabs: {display:"flex", gap:6, marginBottom:16, flexWrap:"wrap", alignItems:"center"},
-    tab: a => ({padding:"7px 14px", borderRadius:8, border:"1px solid "+(a?"transparent":"#333"), background:a?"#fff":"#1a1a1a", color:a?"#000":"#fff", fontSize:13, cursor:"pointer"}),
-    gear: {marginLeft:"auto", width:34, height:34, borderRadius:8, border:"1px solid #333", background:"#1a1a1a", color:"#fff", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center"},
-    card: {background:"#161616", border:"1px solid #2a2a2a", borderRadius:12, padding:"12px", marginBottom:10},
-    cardBl: {background:"#161616", border:"1px solid #2a2a2a", borderLeft:"3px solid #fff", borderRadius:12, padding:"12px", marginBottom:10},
-    label: {fontSize:11, color:"#fff", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8},
-    mBtn: a => ({padding:"6px 10px", borderRadius:8, border:"1px solid "+(a?"transparent":"#333"), background:a?"#fff":"#222", color:a?"#000":"#fff", fontSize:12, cursor:"pointer", opacity:a?0.7:1}),
-    inp: {height:34, padding:"0 8px", border:"1px solid #2a2a2a", borderRadius:7, fontSize:13, background:"#1f1f1f", color:"#e5e5e5", width:"100%"},
-    inpC: {height:34, padding:"0 8px", border:"1px solid #2a2a2a", borderRadius:7, fontSize:13, background:"#1f1f1f", color:"#e5e5e5", width:"100%", textAlign:"center"},
-    exBox: {background:"#1a1a1a", borderRadius:8, padding:"10px", marginBottom:8, border:"1px solid #252525"},
-    row: {display:"grid", gridTemplateColumns:"22px 1fr 1fr 20px", gap:4, alignItems:"center", marginBottom:4},
-    del: {background:"none", border:"none", cursor:"pointer", color:"#fff", fontSize:14, padding:0},
-    sbtn: {padding:"4px 10px", borderRadius:6, border:"1px solid #2a2a2a", background:"#1f1f1f", fontSize:12, cursor:"pointer", color:"#fff", marginTop:2},
-    abtn: {width:"100%", padding:7, borderRadius:8, border:"1px solid #2a2a2a", background:"#1f1f1f", fontSize:13, cursor:"pointer", color:"#fff", marginTop:4},
-    savebtn: {width:"100%", padding:12, borderRadius:8, border:"none", background:"#fff", color:"#000", fontSize:14, fontWeight:500, cursor:"pointer", marginTop:6},
-    tag: {fontSize:11, padding:"2px 8px", borderRadius:20, background:"#252525", color:"#fff"},
-    empty: {textAlign:"center", color:"#fff", padding:"2rem 0", fontSize:14},
-    stats: {display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12},
-    stat: {background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, padding:"10px", textAlign:"center"},
-    calGrid: {display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2},
-    prRow: {display:"flex", justifyContent:"space-between", padding:"7px 0", borderBottom:"1px solid #252525", fontSize:13},
-    histItem: {padding:"10px 0", borderBottom:"1px solid #252525"},
-  };
-
   if (authLoading) {
-    return <div style={{...c.wrap, display:"flex", alignItems:"center", justifyContent:"center"}}>Ladataan...</div>;
+    return <div style={S.authWrap}><Spinner /></div>;
   }
 
   if (!user) {
     return (
-      <div style={{...c.wrap, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, minHeight:"100vh", textAlign:"center"}}>
-        <img src="icon-192.png" width="64" height="64" style={{borderRadius:14}} alt="" />
-        <h2 style={{margin:0}}>Sali</h2>
-        <div style={{fontSize:13, color:"#aaa", maxWidth:280}}>Kirjaudu sisään, jotta treenit synkkautuvat kaikille laitteillesi.</div>
-        <button style={{...c.savebtn, maxWidth:280}} onClick={signIn}>Kirjaudu Google-tilillä</button>
+      <div style={S.authWrap}>
+        <div style={S.authLogo}><img src="icon-192.png" width="72" height="72" alt="" /></div>
+        <h1 style={S.authTitle}>Sali</h1>
+        <div style={S.authSub}>Kirjaudu sisään, jotta treenisi synkronoituvat kaikille laitteillesi reaaliajassa.</div>
+        <button style={S.authBtn} className="press" onClick={signIn}>Jatka Google-tilillä</button>
+        <div style={S.authFoot}>Treenidatasi on yksityinen ja näkyy vain sinulle.</div>
       </div>
     );
   }
 
   if (!loaded) {
-    return <div style={{...c.wrap, display:"flex", alignItems:"center", justifyContent:"center"}}>Ladataan...</div>;
+    return <div style={S.authWrap}><Spinner label="Haetaan treenejä" /></div>;
   }
 
+  const showBar = tab === "log" && blocks.length > 0;
+  const barH = showBar ? (editingId !== null ? 128 : 76) : 0;
+
   return (
-    <div style={c.wrap}>
-      <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16}}>
-        <img src="icon-192.png" width="32" height="32" style={{borderRadius:7, display:"block"}} alt="" />
-        <h2 style={{fontSize:20, fontWeight:700, color:"#fff", margin:0, flex:1}}>Sali</h2>
-      </div>
-      <div style={c.tabs}>
-        {[["log","+ Treeni"],["history","Historia"],["progress","Progressio"]].map(([id,l]) => (
-          <button key={id} style={c.tab(tab===id)} onClick={() => setTab(id)}>{l}</button>
-        ))}
-        <button style={c.gear} onClick={() => setShowSettings(s => !s)} title="Asetukset">⚙</button>
-      </div>
-
-      {showSettings && (
-        <div style={c.card}>
-          <div style={c.label}>Asetukset</div>
-          <div style={{fontSize:12, color:"#fff", marginBottom:10}}>
-            Kirjautuneena: {user.displayName || user.email}
-          </div>
-          <button style={{...c.abtn, marginTop:0, marginBottom:8}} onClick={signOutUser}>Kirjaudu ulos</button>
-          <div style={{fontSize:12, color:"#fff", marginBottom:10}}>
-            Varmuuskopioi treenit tiedostoon tai palauta aiemmin tallennetusta tiedostosta.
-          </div>
-          <button style={{...c.abtn, marginTop:0, marginBottom:8}} onClick={exportData}>
-            ⬇ Vie tiedot ({workouts.length} treeniä)
+    <div style={S.wrap}>
+      <div style={{...S.scroll, paddingBottom: NAV_H + 24 + barH}}>
+        <div style={S.header}>
+          <div style={S.logoWrap}><img src="icon-192.png" width="36" height="36" alt="" /></div>
+          <h1 style={S.brand}>Sali</h1>
+          <button style={S.iconBtn} className="press" onClick={() => setShowSettings(true)} aria-label="Asetukset">
+            <IconSettings size={18}/>
           </button>
-          <label style={{...c.abtn, display:"block", textAlign:"center", marginTop:0}}>
-            ⬆ Tuo tiedot tiedostosta
-            <input type="file" accept="application/json,.json" onChange={importData} style={{display:"none"}} />
-          </label>
         </div>
-      )}
 
-      {tab === "log" && (
-        <div>
-          {editingId !== null && workouts.find(w => w.id === editingId) && (() => {
-            const ew = workouts.find(w => w.id === editingId);
-            return (
-              <div style={{...c.card, borderLeft:"3px solid #fbbf24", background:"#1a1610"}}>
-                <div style={{fontSize:13, fontWeight:500, color:"#fbbf24"}}>Muokataan treeniä</div>
-                <div style={{fontSize:12, color:"#fff", marginTop:2}}>
-                  {fmtDate(ew.date)}
-                  {ew.time && " · " + ew.time}
+        {tab === "log" && (
+          <div className="fade-anim">
+            {editingId !== null && workouts.find(w => w.id === editingId) && (() => {
+              const ew = workouts.find(w => w.id === editingId);
+              return (
+                <div style={S.cardEditing}>
+                  <IconEdit size={16} style={{color:C.warn, flexShrink:0}}/>
+                  <div>
+                    <div style={{fontSize:13, fontWeight:700, color:C.warn}}>Muokataan treeniä</div>
+                    <div style={{fontSize:12, color:C.textDim, marginTop:1}}>
+                      {fmtDate(ew.date)}{ew.time && " · " + ew.time}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
-          <div style={c.card}>
-            <div style={c.label}>Valitse lihasryhmät</div>
-            {Object.entries(GROUPS).map(([cat,muscles]) => (
-              <div key={cat} style={{marginBottom:10}}>
-                <div style={{fontSize:11, color:"#fff", marginBottom:4}}>{cat}</div>
-                <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
-                  {muscles.map(m => (
-                    <button key={m} style={c.mBtn(selMuscles.includes(m))} onClick={() => toggleMuscle(m)}>
-                      {selMuscles.includes(m) ? "✓ " : "+ "}{m}
-                    </button>
-                  ))}
+              );
+            })()}
+            <div style={S.card}>
+              <div style={S.label}>Valitse lihasryhmät</div>
+              {Object.entries(GROUPS).map(([cat,muscles]) => (
+                <div key={cat} style={{marginBottom:10}}>
+                  <div style={S.catLabel}>{cat}</div>
+                  <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
+                    {muscles.map(m => {
+                      const a = selMuscles.includes(m);
+                      return (
+                        <button key={m} className="press" style={S.mBtn(a)} onClick={() => toggleMuscle(m)}>
+                          {a ? <IconCheck size={13}/> : <IconPlus size={13}/>}{m}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            {blocks.map(block => (
+              <div key={block.id} style={S.cardBlock}>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10}}>
+                  <span style={{fontWeight:700, fontSize:15}}>{block.muscle}</span>
+                  <button style={S.delIcon} className="press" onClick={() => rmBlock(block.id)} aria-label="Poista lihasryhmä"><IconX size={16}/></button>
+                </div>
+
+                {block.muscle === "Cardio" ? (
+                  <div style={{display:"flex", flexDirection:"column", gap:8}}>
+                    <input style={S.inp} type="number" placeholder="Kesto (min)" value={block.ct}
+                      onChange={e => updBlock(block.id,"ct",e.target.value)} />
+                    <textarea style={S.textarea}
+                      placeholder="Muistiinpanot..." value={block.cn}
+                      onChange={e => updBlock(block.id,"cn",e.target.value)} />
+                  </div>
+                ) : (
+                  <div>
+                    {block.exercises.map((ex, xi) => (
+                      <div key={ex.id} style={S.exBox}>
+                        <div style={{display:"flex", gap:6, alignItems:"center", marginBottom:8}}>
+                          <input style={S.inp} list={"dl-"+ex.id}
+                            placeholder="Liikkeen nimi" value={ex.name}
+                            onChange={e => setExName(block.id, ex.id, e.target.value)} />
+                          <datalist id={"dl-"+ex.id}>
+                            {prevEx(block.muscle).map(n => <option key={n} value={n} />)}
+                          </datalist>
+                          {xi > 0 && <button style={S.delIcon} className="press" onClick={() => rmEx(block.id, ex.id)} aria-label="Poista liike"><IconX size={15}/></button>}
+                        </div>
+                        {(() => {
+                          const q = ex.name.trim().toLowerCase();
+                          const suggestions = prevEx(block.muscle).filter(n =>
+                            n.toLowerCase() !== q && (!q || n.toLowerCase().includes(q))
+                          );
+                          if (!suggestions.length) return null;
+                          return (
+                            <div style={{display:"flex", flexWrap:"wrap", gap:4, marginBottom:9}}>
+                              {suggestions.map(n => (
+                                <button key={n} className="press" style={S.chip}
+                                  onClick={() => setExName(block.id, ex.id, n)}>
+                                  {n}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                        <div style={S.setHeaderRow}>
+                          <span style={S.setHeaderCell}>Toistot</span>
+                          <span style={S.setHeaderCell}>Paino kg</span>
+                        </div>
+                        {ex.sets.map((s, si) => (
+                          <div key={s.id} style={S.setRow}>
+                            <span style={S.setBadge}>{si+1}</span>
+                            <Stepper value={s.reps} step={1} onChange={v => updSet(block.id, ex.id, s.id, "reps", v)} />
+                            <Stepper value={s.weight} step={0.5} onChange={v => updSet(block.id, ex.id, s.id, "weight", v)} />
+                            <button style={S.delIcon} className="press" onClick={() => rmSet(block.id, ex.id, s.id)} aria-label="Poista sarja"><IconX size={14}/></button>
+                          </div>
+                        ))}
+                        <button style={S.sbtn} className="press" onClick={() => addSet(block.id, ex.id)}><IconPlus size={12}/> Sarja</button>
+                      </div>
+                    ))}
+                    <button style={S.abtn} className="press" onClick={() => addEx(block.id)}><IconPlus size={14}/> Lisää liike</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
+        )}
 
-          {blocks.map(block => (
-            <div key={block.id} style={c.cardBl}>
-              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10}}>
-                <span style={{fontWeight:500}}>{block.muscle}</span>
-                <button style={c.del} onClick={() => rmBlock(block.id)}>✕</button>
+        {tab === "history" && (
+          <div className="fade-anim">
+            <div style={S.card}>
+              <div style={{fontWeight:700, fontSize:14, marginBottom:10, textTransform:"capitalize", fontFamily:"'Oswald',sans-serif", letterSpacing:"0.02em"}}>
+                {now.toLocaleDateString("fi-FI",{month:"long",year:"numeric"})}
               </div>
-
-              {block.muscle === "Cardio" ? (
-                <div style={{display:"flex", flexDirection:"column", gap:8}}>
-                  <input style={c.inp} type="number" placeholder="Kesto (min)" value={block.ct}
-                    onChange={e => updBlock(block.id,"ct",e.target.value)} />
-                  <textarea style={{...c.inp, height:56, padding:"6px 8px", resize:"none"}}
-                    placeholder="Muistiinpanot..." value={block.cn}
-                    onChange={e => updBlock(block.id,"cn",e.target.value)} />
+              <div style={{...S.calGrid, marginBottom:5}}>
+                {["Su","Ma","Ti","Ke","To","Pe","La"].map(d => (
+                  <div key={d} style={{fontSize:10, color:C.textFaint, textAlign:"center", fontWeight:700}}>{d}</div>
+                ))}
+              </div>
+              <div style={S.calGrid}>
+                {Array.from({length: fd===0?6:fd-1}).map((_,i) => <div key={"e"+i} />)}
+                {Array.from({length:dim}).map((_,i) => {
+                  const d = i+1, info = wDates[d], isT = d===now.getDate();
+                  return (
+                    <div key={d} title={info||""} style={{
+                      aspectRatio:"1", borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center",
+                      fontSize:11, fontWeight:isT?700:500,
+                      background:info?C.accent:"transparent",
+                      color:info?"#1a0e05":C.textDim,
+                      boxShadow:isT && !info ? "inset 0 0 0 1.5px "+C.accent : "none"
+                    }}>{d}</div>
+                  );
+                })}
+              </div>
+              {Object.keys(wDates).length > 0 && (
+                <div style={{marginTop:12, display:"flex", flexDirection:"column", gap:3}}>
+                  {Object.entries(wDates).sort((a,b) => a[0]-b[0]).map(([d,info]) => (
+                    <div key={d} style={{fontSize:12, color:C.textDim}}><b style={{color:C.text}}>{d}.</b> {info}</div>
+                  ))}
                 </div>
+              )}
+            </div>
+
+            <div style={S.stats}>
+              <div style={S.stat}>
+                <div style={{...S.statNum, color:C.text}}>{workouts.length}</div>
+                <div style={S.statLabel}>Treeniä</div>
+              </div>
+              <div style={S.stat}>
+                <div style={{...S.statNum, color:C.text}}>{cardioCount}</div>
+                <div style={S.statLabel}>Cardio</div>
+              </div>
+              <div style={S.stat}>
+                <div style={{...S.statNum, fontSize:15, color:consColor}}>{consLabel}</div>
+                <div style={S.statLabel}>Säännöllisyys</div>
+              </div>
+            </div>
+
+            {workouts.length === 0 && <div style={S.card}><div style={S.empty}>Ei vielä treenejä — aloita Treeni-välilehdeltä</div></div>}
+            {[...workouts].reverse().map((w) => (
+              <div key={w.id} style={S.histItem}>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                  <span style={{fontWeight:700, fontSize:13.5}}>
+                    {fmtDate(w.date)}
+                    {w.time && <span style={{fontWeight:500, color:C.textFaint, fontSize:12, marginLeft:6}}>{w.time}</span>}
+                  </span>
+                  <div style={{display:"flex", gap:16}}>
+                    <button style={S.delIcon} className="press" onClick={() => editWorkout(w.id)} aria-label="Muokkaa"><IconEdit size={16}/></button>
+                    <button style={S.delIcon} className="press" onClick={() => delW(w.id)} aria-label="Poista"><IconTrash size={16}/></button>
+                  </div>
+                </div>
+                <div style={{display:"flex", flexWrap:"wrap", gap:5, margin:"7px 0"}}>
+                  {(w.groups||[]).map(g => <span key={g.muscle} style={S.tag}>{g.muscle}</span>)}
+                </div>
+                {(w.groups||[]).map(g => (
+                  <div key={g.muscle} style={{fontSize:12.5, color:C.textDim, marginBottom:2, lineHeight:1.5}}>
+                    <b style={{color:C.text}}>{g.muscle}: </b>
+                    {g.muscle==="Cardio"
+                      ? (g.ct?g.ct+" min":"")+(g.cn?" · "+g.cn:"")
+                      : (g.exercises||[]).map(e => e.name+" ("+(e.sets||[]).map(s => s.reps+"×"+s.weight+"kg").join(", ")+")").join(" · ")
+                    }
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "progress" && (
+          <div className="fade-anim">
+            <div style={S.card}>
+              {allEx.length === 0 ? (
+                <div style={S.empty}>Tallenna ensin treenejä</div>
               ) : (
                 <div>
-                  {block.exercises.map((ex, xi) => (
-                    <div key={ex.id} style={c.exBox}>
-                      <div style={{display:"flex", gap:6, alignItems:"center", marginBottom:6}}>
-                        <input style={c.inp} list={"dl-"+ex.id}
-                          placeholder="Liikkeen nimi" value={ex.name}
-                          onChange={e => setExName(block.id, ex.id, e.target.value)} />
-                        <datalist id={"dl-"+ex.id}>
-                          {prevEx(block.muscle).map(n => <option key={n} value={n} />)}
-                        </datalist>
-                        {xi > 0 && <button style={c.del} onClick={() => rmEx(block.id, ex.id)}>✕</button>}
-                      </div>
-                      {(() => {
-                        const q = ex.name.trim().toLowerCase();
-                        const suggestions = prevEx(block.muscle).filter(n =>
-                          n.toLowerCase() !== q && (!q || n.toLowerCase().includes(q))
-                        );
-                        if (!suggestions.length) return null;
-                        return (
-                          <div style={{display:"flex", flexWrap:"wrap", gap:4, marginBottom:8}}>
-                            {suggestions.map(n => (
-                              <button key={n}
-                                style={{fontSize:11, padding:"3px 9px", borderRadius:14, background:"#1f1f1f", color:"#fff", border:"1px solid #2a2a2a", cursor:"pointer"}}
-                                onClick={() => setExName(block.id, ex.id, n)}>
-                                {n}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                      <div style={{display:"grid", gridTemplateColumns:"22px 1fr 1fr 20px", gap:4, marginBottom:4}}>
-                        <span></span>
-                        <span style={{fontSize:10, color:"#fff", textAlign:"center"}}>Toistot</span>
-                        <span style={{fontSize:10, color:"#fff", textAlign:"center"}}>Paino kg</span>
-                        <span></span>
-                      </div>
-                      {ex.sets.map((s, si) => (
-                        <div key={s.id} style={c.row}>
-                          <span style={{fontSize:12, color:"#fff", textAlign:"center"}}>{si+1}</span>
-                          <input style={c.inpC} type="number" placeholder="10" value={s.reps}
-                            onChange={e => updSet(block.id, ex.id, s.id, "reps", e.target.value)} />
-                          <input style={c.inpC} type="number" placeholder="0" step="0.5" value={s.weight}
-                            onChange={e => updSet(block.id, ex.id, s.id, "weight", e.target.value)} />
-                          <button style={c.del} onClick={() => rmSet(block.id, ex.id, s.id)}>✕</button>
-                        </div>
-                      ))}
-                      <button style={c.sbtn} onClick={() => addSet(block.id, ex.id)}>+ sarja</button>
+                  <select value={curEx} onChange={e => setPEx(e.target.value)}
+                    style={{...S.inp, marginBottom:12, fontWeight:600}}>
+                    {allEx.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <div style={{display:"grid", gridTemplateColumns:"1fr 55px 65px", gap:4, marginBottom:6}}>
+                    {["Päivä","Toistot","Paino"].map((l,i) => (
+                      <span key={l} style={{fontSize:9.5, color:C.textFaint, textAlign:i>0?"center":"left", textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700}}>{l}</span>
+                    ))}
+                  </div>
+                  {pEntries.map((e,i) => (
+                    <div key={i} style={{display:"grid", gridTemplateColumns:"1fr 55px 65px", gap:4, padding:"7px 0", borderBottom:"1px solid "+C.borderSoft, fontSize:13}}>
+                      <span style={{color:C.textDim}}>{fmtDate(e.date)}</span>
+                      <span style={{textAlign:"center", fontWeight:600}}>{e.reps}</span>
+                      <span style={{textAlign:"center", fontWeight:600}}>{e.weight} kg</span>
                     </div>
                   ))}
-                  <button style={c.abtn} onClick={() => addEx(block.id)}>+ liike</button>
                 </div>
               )}
             </div>
-          ))}
 
-          {blocks.length > 0 && (
-            <div>
-              <button style={c.savebtn} onClick={saveWorkout}>
-                {editingId !== null ? "Päivitä treeni" : "Tallenna treeni"}
+            <div style={S.card}>
+              <div style={S.label}>Ennätykset</div>
+              {Object.keys(prs).length === 0 ? (
+                <div style={S.empty}>Ei ennätyksiä</div>
+              ) : (
+                Object.entries(prs).sort((a,b) => b[1].w-a[1].w).map(([name,pr]) => (
+                  <div key={name} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid "+C.borderSoft}}>
+                    <span style={{fontSize:13.5, fontWeight:600}}>{name}</span>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontFamily:"'Oswald',sans-serif", fontWeight:600, fontSize:16, color:C.accent}}>{pr.w} kg</div>
+                      <div style={{fontSize:10.5, color:C.textFaint}}>{fmtDate(pr.d)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showBar && (
+        <div style={{...S.savebar, bottom:NAV_H}}>
+          <div style={S.savebarInner}>
+            <button style={S.savebtn} className="press" onClick={saveWorkout}>
+              {editingId !== null ? "Päivitä treeni" : "Tallenna treeni"}
+            </button>
+            {editingId !== null && (
+              <button style={S.cancelbtn} className="press" onClick={cancelEdit}>Peruuta muokkaus</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <nav style={S.nav}>
+        <div style={S.navInner}>
+          {NAV_ITEMS.map(([id,label,IconC]) => {
+            const a = tab === id;
+            return (
+              <button key={id} className="press" style={S.navItem(a)} onClick={() => setTab(id)}>
+                {a && <div style={S.navIndicator} />}
+                <IconC size={21}/>
+                <span style={S.navLabel}>{label}</span>
               </button>
-              {editingId !== null && (
-                <button style={{...c.abtn, marginTop:8}} onClick={cancelEdit}>Peruuta muokkaus</button>
-              )}
-            </div>
-          )}
+            );
+          })}
         </div>
-      )}
+      </nav>
 
-      {tab === "history" && (
-        <div>
-          <div style={c.card}>
-            <div style={{fontWeight:500, fontSize:14, marginBottom:10, textTransform:"capitalize"}}>
-              {now.toLocaleDateString("fi-FI",{month:"long",year:"numeric"})}
-            </div>
-            <div style={{...c.calGrid, marginBottom:4}}>
-              {["Su","Ma","Ti","Ke","To","Pe","La"].map(d => (
-                <div key={d} style={{fontSize:10, color:"#fff", textAlign:"center"}}>{d}</div>
-              ))}
-            </div>
-            <div style={c.calGrid}>
-              {Array.from({length: fd===0?6:fd-1}).map((_,i) => <div key={"e"+i} />)}
-              {Array.from({length:dim}).map((_,i) => {
-                const d = i+1, info = wDates[d], isT = d===now.getDate();
-                return (
-                  <div key={d} title={info||""} style={{
-                    aspectRatio:"1", borderRadius:5, display:"flex", alignItems:"center", justifyContent:"center",
-                    fontSize:11, fontWeight:isT?600:400,
-                    background:info?"#fff":isT?"#2a2a2a":"transparent",
-                    color:info?"#000":isT?"#fff":"#888"
-                  }}>{d}</div>
-                );
-              })}
-            </div>
-            {Object.keys(wDates).length > 0 && (
-              <div style={{marginTop:10}}>
-                {Object.entries(wDates).sort((a,b) => a[0]-b[0]).map(([d,info]) => (
-                  <div key={d} style={{fontSize:12, color:"#fff", marginBottom:2}}><b>{d}.</b> {info}</div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={c.stats}>
-            <div style={c.stat}>
-              <div style={{fontSize:20, fontWeight:500}}>{workouts.length}</div>
-              <div style={{fontSize:11, color:"#fff"}}>Treenikertaa</div>
-            </div>
-            <div style={c.stat}>
-              <div style={{fontSize:20, fontWeight:500}}>{cardioCount}</div>
-              <div style={{fontSize:11, color:"#fff"}}>Cardio</div>
-            </div>
-            <div style={c.stat}>
-              <div style={{fontSize:15, fontWeight:600, color:consColor}}>{consLabel}</div>
-              <div style={{fontSize:11, color:"#fff"}}>Säännöllisyys</div>
-            </div>
-          </div>
-
-          <div style={c.card}>
-            {workouts.length === 0 && <div style={c.empty}>Ei treenejä</div>}
-            {[...workouts].reverse().map((w) => {
-              return (
-                <div key={w.id} style={c.histItem}>
-                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-                    <span style={{fontWeight:500, fontSize:13}}>
-                      {fmtDate(w.date)}
-                      {w.time && <span style={{fontWeight:400, color:"#fff", fontSize:12, marginLeft:6}}>{w.time}</span>}
-                    </span>
-                    <div style={{display:"flex", gap:14}}>
-                      <button style={{...c.del, color:"#fbbf24", fontSize:16}} onClick={() => editWorkout(w.id)} title="Muokkaa">✎</button>
-                      <button style={c.del} onClick={() => delW(w.id)} title="Poista">🗑</button>
-                    </div>
-                  </div>
-                  <div style={{display:"flex", flexWrap:"wrap", gap:4, margin:"4px 0"}}>
-                    {(w.groups||[]).map(g => <span key={g.muscle} style={c.tag}>{g.muscle}</span>)}
-                  </div>
-                  {(w.groups||[]).map(g => (
-                    <div key={g.muscle} style={{fontSize:12, color:"#fff", marginBottom:2}}>
-                      <b style={{color:"#e5e5e5"}}>{g.muscle}: </b>
-                      {g.muscle==="Cardio"
-                        ? (g.ct?g.ct+" min":"")+(g.cn?" · "+g.cn:"")
-                        : (g.exercises||[]).map(e => e.name+" ("+(e.sets||[]).map(s => s.reps+"×"+s.weight+"kg").join(", ")+")").join(" · ")
-                      }
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {tab === "progress" && (
-        <div>
-          <div style={c.card}>
-            {allEx.length === 0 ? (
-              <div style={c.empty}>Tallenna ensin treenejä</div>
-            ) : (
-              <div>
-                <select value={curEx} onChange={e => setPEx(e.target.value)}
-                  style={{...c.inp, height:36, marginBottom:12}}>
-                  {allEx.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <div style={{display:"grid", gridTemplateColumns:"1fr 55px 65px", gap:4, marginBottom:4}}>
-                  {["Päivä","Toistot","Paino"].map((l,i) => (
-                    <span key={l} style={{fontSize:10, color:"#fff", textAlign:i>0?"center":"left"}}>{l}</span>
-                  ))}
-                </div>
-                {pEntries.map((e,i) => (
-                  <div key={i} style={{display:"grid", gridTemplateColumns:"1fr 55px 65px", gap:4, padding:"6px 0", borderBottom:"1px solid #252525", fontSize:13}}>
-                    <span style={{color:"#fff"}}>{fmtDate(e.date)}</span>
-                    <span style={{textAlign:"center"}}>{e.reps}</span>
-                    <span style={{textAlign:"center"}}>{e.weight} kg</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={c.card}>
-            <div style={c.label}>Ennätykset</div>
-            {Object.keys(prs).length === 0 ? (
-              <div style={c.empty}>Ei ennätyksiä</div>
-            ) : (
-              Object.entries(prs).sort((a,b) => b[1].w-a[1].w).map(([name,pr]) => (
-                <div key={name} style={c.prRow}>
-                  <span>{name}</span>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontWeight:500}}>{pr.w} kg</div>
-                    <div style={{fontSize:11, color:"#fff"}}>{fmtDate(pr.d)}</div>
-                  </div>
-                </div>
-              ))
-            )}
+      {showSettings && (
+        <div style={S.sheetBackdrop} className="backdrop-anim" onClick={() => setShowSettings(false)}>
+          <div style={S.sheet} className="sheet-anim" onClick={e => e.stopPropagation()}>
+            <div style={S.sheetHandle} />
+            <div style={S.avatar}>{(user.displayName || user.email || "?").charAt(0).toUpperCase()}</div>
+            <div style={S.sheetName}>{user.displayName || "Käyttäjä"}</div>
+            <div style={S.sheetEmail}>{user.email}</div>
+            <button style={S.dangerBtn} className="press" onClick={signOutUser}>
+              <IconLogOut size={16}/> Kirjaudu ulos
+            </button>
           </div>
         </div>
       )}
 
       {toast && (
-        <div style={{position:"fixed", bottom:20, left:"50%", transform:"translateX(-50%)", background:"#fff", color:"#000", padding:"8px 18px", borderRadius:8, fontSize:13, zIndex:999, whiteSpace:"nowrap"}}>
-          {toast}
+        <div style={{...S.toast, bottom: NAV_H + 16}}>
+          <IconCheck size={15} style={{color:C.accent}}/>{toast}
         </div>
       )}
     </div>

@@ -1,13 +1,13 @@
 {
-  "name": "Gym Tracker",
-  "short_name": "Gym",
-  "description": "Personal gym workout tracker",
+  "name": "Sali",
+  "short_name": "Sali",
+  "description": "Henkilökohtainen treenipäiväkirja",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#111111",
+  "background_color": "#140f0c",
+  "theme_color": "#140f0c",
   "lang": "fi",
   "icons": [
     {
