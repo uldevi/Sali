@@ -605,7 +605,7 @@ function App() {
                 {now.toLocaleDateString("fi-FI",{month:"long",year:"numeric"})}
               </div>
               <div style={{...S.calGrid, marginBottom:5}}>
-                {["Su","Ma","Ti","Ke","To","Pe","La"].map(d => (
+                {["Ma","Ti","Ke","To","Pe","La","Su"].map(d => (
                   <div key={d} style={{fontSize:10, color:C.textFaint, textAlign:"center", fontWeight:700}}>{d}</div>
                 ))}
               </div>
