@@ -154,6 +154,35 @@ function IconEdit(p){ return <Icon {...p}><path d="M12 20h9"/><path d="M16.5 3.5
 function IconCheck(p){ return <Icon {...p}><path d="M20 6L9 17l-5-5"/></Icon>; }
 function IconLogOut(p){ return <Icon {...p}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></Icon>; }
 
+const RATING_COLORS = {1:"#d9534f", 2:"#ec8a3a", 3:"#e6c229", 4:"#a9d46f", 5:"#2e8b4f"};
+const RATING_TEXT = {1:"#fff", 2:"#141414", 3:"#141414", 4:"#141414", 5:"#fff"};
+
+function StarShape({filled, color, size}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : "none"} stroke={filled ? color : C.textFaint}
+      strokeWidth="1.8" strokeLinejoin="round">
+      <path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4L2.8 9.5l6.4-.8z"/>
+    </svg>
+  );
+}
+
+function Stars({value, onChange, size=30, readOnly}) {
+  const color = RATING_COLORS[value] || C.textFaint;
+  return (
+    <div style={{display:"flex", gap: readOnly ? 1 : 6}}>
+      {[1,2,3,4,5].map(i => readOnly ? (
+        <StarShape key={i} filled={i <= value} color={color} size={size} />
+      ) : (
+        <button key={i} type="button" className="press" aria-label={i+" tähteä"}
+          style={{background:"none", border:"none", padding:2, cursor:"pointer", display:"flex"}}
+          onClick={() => { haptic(); onChange(value === i ? 0 : i); }}>
+          <StarShape filled={i <= value} color={color} size={size} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const NAV_ITEMS = [
   ["log","Treeni",IconPlus],
   ["history","Historia",IconClock],
@@ -197,6 +226,7 @@ function App() {
   const [loaded, setLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [rating, setRating] = useState(0);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const touchRef = useRef({x:0, y:0, t:0});
@@ -332,14 +362,16 @@ function App() {
     const col = db.collection("users").doc(user.uid).collection("workouts");
     if (editingId !== null) {
       const existing = workouts.find(w => w.id === editingId);
-      col.doc(editingId).set(Object.assign({}, existing, {groups})).catch(() => showToast("Tallennus epäonnistui"));
+      col.doc(editingId).set(Object.assign({}, existing, {groups, rating})).catch(() => showToast("Tallennus epäonnistui"));
       setEditingId(null);
       setBlocks([]);
+      setRating(0);
       showToast("Päivitetty!");
     } else {
       const id = uid();
-      col.doc(id).set({id, date:todayStr(), time:nowTime(), ts:Date.now(), groups}).catch(() => showToast("Tallennus epäonnistui"));
+      col.doc(id).set({id, date:todayStr(), time:nowTime(), ts:Date.now(), groups, rating}).catch(() => showToast("Tallennus epäonnistui"));
       setBlocks([]);
+      setRating(0);
       showToast("Tallennettu!");
     }
   }
@@ -361,6 +393,7 @@ function App() {
     }));
     setBlocks(newBlocks);
     setEditingId(id);
+    setRating(w.rating || 0);
     setTab("log");
     setShowSettings(false);
     window.scrollTo(0, 0);
@@ -369,12 +402,13 @@ function App() {
   function cancelEdit() {
     setEditingId(null);
     setBlocks([]);
+    setRating(0);
   }
 
   function delW(id) {
     if (!confirm("Poistetaanko tämä treeni?")) return;
     haptic();
-    if (editingId === id) { setEditingId(null); setBlocks([]); }
+    if (editingId === id) { setEditingId(null); setBlocks([]); setRating(0); }
     db.collection("users").doc(user.uid).collection("workouts").doc(id).delete().catch(() => showToast("Poisto epäonnistui"));
   }
 
@@ -413,11 +447,13 @@ function App() {
   const fd = new Date(yr,mo,1).getDay();
   const dim = new Date(yr,mo+1,0).getDate();
   const wDates = {};
+  const wRatings = {};
   workouts.forEach(w => {
     const prefix = yr+"-"+String(mo+1).padStart(2,"0");
     if (w.date.startsWith(prefix)) {
       const d = parseInt(w.date.split("-")[2]);
       wDates[d] = (w.groups||[]).map(g => g.muscle).join(" + ");
+      wRatings[d] = w.rating || 0;
     }
   });
 
@@ -552,6 +588,13 @@ function App() {
                 )}
               </div>
             ))}
+
+            {blocks.length > 0 && (
+              <div style={S.card}>
+                <div style={S.label}>Treenin laatu</div>
+                <Stars value={rating} onChange={setRating} size={34} />
+              </div>
+            )}
           </div>
         )}
 
@@ -574,8 +617,8 @@ function App() {
                     <div key={d} title={info||""} style={{
                       aspectRatio:"1", borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center",
                       fontSize:11, fontWeight:isT?700:500,
-                      background:info?C.accent:"transparent",
-                      color:info?"#141414":C.textDim,
+                      background:info?(RATING_COLORS[wRatings[d]] || C.accent):"transparent",
+                      color:info?(RATING_TEXT[wRatings[d]] || "#141414"):C.textDim,
                       boxShadow:isT && !info ? "inset 0 0 0 1.5px "+C.accent : "none"
                     }}>{d}</div>
                   );
@@ -613,6 +656,7 @@ function App() {
                     {fmtDate(w.date)}
                     {w.time && <span style={{fontWeight:500, color:C.textFaint, fontSize:12, marginLeft:6}}>{w.time}</span>}
                   </span>
+                  {w.rating > 0 && <Stars value={w.rating} size={14} readOnly />}
                   <div style={{display:"flex", gap:16}}>
                     <button style={S.delIcon} className="press" onClick={() => editWorkout(w.id)} aria-label="Muokkaa"><IconEdit size={16}/></button>
                     <button style={S.delIcon} className="press" onClick={() => delW(w.id)} aria-label="Poista"><IconTrash size={16}/></button>
