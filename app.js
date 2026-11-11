@@ -7,6 +7,7 @@ const MUSCLES = [
   ["Jalat","Vatsat","Cardio"]
 ];
 const KEY = "gym_v5";
+const DRAFT_KEY = "sali_draft_v1_";
 
 firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
@@ -28,6 +29,8 @@ async function runBatched(ops) {
   }
 }
 function fmtDate(d) { return new Date(d+"T12:00:00").toLocaleDateString("fi-FI",{day:"numeric",month:"short",year:"numeric"}); }
+function fmtShort(d) { return new Date(d+"T12:00:00").toLocaleDateString("fi-FI",{day:"numeric",month:"numeric"}); }
+function fmtSets(sets) { return (sets||[]).map(s => (s.reps||"–")+"×"+(s.weight||"0")).join(" · "); }
 function todayStr() { return new Date().toISOString().split("T")[0]; }
 function nowTime() { return new Date().toLocaleTimeString("fi-FI",{hour:"2-digit",minute:"2-digit"}); }
 function newSet() { return {id:uid(),reps:"",weight:""}; }
@@ -89,6 +92,9 @@ const S = {
 
   sbtn: {padding:"7px 12px", borderRadius:5, border:"1px solid "+C.border, background:"transparent", fontSize:12.5, cursor:"pointer", color:C.textDim, marginTop:2, display:"inline-flex", alignItems:"center", gap:5, fontWeight:600},
   abtn: {width:"100%", padding:"10px", borderRadius:5, border:"1px dashed "+C.border, background:"transparent", fontSize:13.5, cursor:"pointer", color:C.textDim, marginTop:4, display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontWeight:600},
+
+  listRow: {width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, padding:"12px 0", background:"none", border:"none", borderBottom:"1px solid "+C.borderSoft, color:C.text, cursor:"pointer", textAlign:"left"},
+  lastRow: {fontSize:12, color:C.textDim, marginBottom:9, lineHeight:1.5},
 
   tag: {fontSize:11, padding:"3px 9px", borderRadius:4, background:C.bgElev2, color:C.textDim, fontWeight:700, border:"1px solid "+C.border},
   empty: {textAlign:"center", color:C.textFaint, padding:"2.2rem 0", fontSize:13.5},
@@ -152,6 +158,8 @@ function IconX(p){ return <Icon {...p}><path d="M18 6L6 18M6 6l12 12"/></Icon>; 
 function IconTrash(p){ return <Icon {...p}><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z"/></Icon>; }
 function IconEdit(p){ return <Icon {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></Icon>; }
 function IconCheck(p){ return <Icon {...p}><path d="M20 6L9 17l-5-5"/></Icon>; }
+function IconChevL(p){ return <Icon {...p}><path d="M15 18l-6-6 6-6"/></Icon>; }
+function IconChevR(p){ return <Icon {...p}><path d="M9 18l6-6-6-6"/></Icon>; }
 function IconLogOut(p){ return <Icon {...p}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></Icon>; }
 
 const RATING_COLORS = {1:"#d9534f", 2:"#ec8a3a", 3:"#e6c229", 4:"#a9d46f", 5:"#2e8b4f"};
@@ -208,6 +216,80 @@ function Stepper({value, step, onChange}) {
   );
 }
 
+// Liikkeen sarjat pisteinä (toistot, paino). rec = treenikerrat joilla tehtiin sarja,
+// jota mikään aiempi sarja ei päihitä (vähintään samat toistot ja vähintään sama paino).
+function exStats(sessions) {
+  const pts = [];
+  const rec = new Set();
+  sessions.forEach((s, i) => {
+    const cur = [];
+    (s.sets||[]).forEach(x => {
+      const r = parseFloat(x.reps), w = parseFloat(x.weight) || 0;
+      if (!(r > 0)) return;
+      if (i > 0 && w > 0 && !pts.some(p => p.r >= r && p.w >= w)) rec.add(i);
+      cur.push({r, w, i});
+    });
+    cur.forEach(p => pts.push(p));
+  });
+  // Kerran raskain sarja (tasapainossa eniten toistoja), enintään 12 viimeisintä kertaa.
+  const tops = [];
+  sessions.forEach((s, i) => {
+    let best = null;
+    pts.forEach(p => {
+      if (p.i === i && (!best || p.w > best.w || (p.w === best.w && p.r > best.r))) best = p;
+    });
+    if (best) tops.push({r:best.r, w:best.w, i, date:s.date});
+  });
+  return {pts, rec, tops: tops.slice(-12)};
+}
+
+function fmtNum(v) { return String(Math.round(v * 100) / 100).replace(".", ","); }
+
+// Aikajana: x = treenikerrat päivämäärineen, y = kerran raskaimman sarjan paino,
+// pisteen päällä sen toistot. Kehonpainoliikkeissä (paino 0) y = toistot.
+function ExChart({tops}) {
+  const W = 320, H = 190, L = 34, R = 14, T = 26, B = 24;
+  const bw = tops.every(p => p.w === 0);
+  const val = p => bw ? p.r : p.w;
+  const ws = tops.map(val);
+  const n = tops.length;
+  const wmin = Math.min(...ws), wmax = Math.max(...ws);
+  const raw = ((wmax - wmin) || 10) / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const ys = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw);
+  let y0 = Math.floor(wmin / ys) * ys, y1 = Math.ceil(wmax / ys) * ys;
+  if (y0 === wmin && y0 > 0) y0 -= ys;
+  if (y1 === wmax) y1 += ys;
+  const X = k => n === 1 ? (L + W - R) / 2 : L + 14 + k / (n - 1) * (W - L - R - 28);
+  const Y = w => H - B - (w - y0) / (y1 - y0) * (H - T - B);
+  const lblStep = Math.ceil(n / 6);
+  const yT = [];
+  const yn = Math.round((y1 - y0) / ys);
+  for (let i = 0; i <= yn; i++) yT.push(Math.round((y0 + i * ys) * 100) / 100);
+  const tx = {fontSize:9.5, fill:C.textFaint, fontFamily:"'Manrope',sans-serif", fontWeight:600};
+  return (
+    <svg viewBox={"0 0 "+W+" "+H} width="100%" style={{display:"block"}} role="img" aria-label="Kehitys treenikerroittain">
+      {yT.map(v => (
+        <g key={"y"+v}>
+          <line x1={L} x2={W-R} y1={Y(v)} y2={Y(v)} stroke={C.borderSoft} strokeWidth="1"/>
+          <text x={L-6} y={Y(v)+3} textAnchor="end" style={tx}>{fmtNum(v)}</text>
+        </g>
+      ))}
+      {n > 1 && (
+        <polyline points={tops.map((p, k) => X(k)+","+Y(val(p))).join(" ")} fill="none"
+          stroke={C.accentDim} strokeWidth="1.5" strokeLinejoin="round"/>
+      )}
+      {tops.map((p, k) => (
+        <g key={k}>
+          <circle cx={X(k)} cy={Y(val(p))} r="4.5" fill={C.accent} stroke={C.bgElev} strokeWidth="1.5"/>
+          {!bw && <text x={X(k)} y={Y(val(p))-9} textAnchor="middle" style={{...tx, fontSize:10, fill:C.text, fontWeight:700}}>×{fmtNum(p.r)}</text>}
+          {(n - 1 - k) % lblStep === 0 && <text x={X(k)} y={H-B+15} textAnchor="middle" style={tx}>{fmtShort(p.date)}</text>}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 function Spinner({label}) {
   return (
     <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:12, padding:"40px 0"}}>
@@ -229,6 +311,12 @@ function App() {
   const [rating, setRating] = useState(0);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [draftUid, setDraftUid] = useState(null);
+  const [calOff, setCalOff] = useState(0);
+  const [dayView, setDayView] = useState(null);
+  const [pMuscle, setPMuscle] = useState("");
+  const draftMeta = useRef(null);
+  const stashRef = useRef(null);
   const touchRef = useRef({x:0, y:0, t:0});
   const tabRef = useRef(tab);
   useEffect(() => { tabRef.current = tab; }, [tab]);
@@ -246,6 +334,12 @@ function App() {
       if (dt > 600) return;
       if (Math.abs(dx) < 60) return;
       if (Math.abs(dy) > Math.abs(dx) * 0.7) return;
+      const el = e.target;
+      if (el.closest && el.closest("[data-noswipe]")) return;
+      if (el.closest && el.closest("[data-cal]")) {
+        setCalOff(o => dx > 0 ? o - 1 : Math.min(0, o + 1));
+        return;
+      }
       const tag = (e.target.tagName || "").toLowerCase();
       if (["input","textarea","select","button"].includes(tag)) return;
       const idx = TABS.indexOf(tabRef.current);
@@ -264,6 +358,39 @@ function App() {
     const unsub = auth.onAuthStateChanged(u => { setUser(u); setAuthLoading(false); });
     return unsub;
   }, []);
+
+  // Päivän treenin luonnos: ladataan laitteen muistista kirjautuessa...
+  useEffect(() => {
+    stashRef.current = null;
+    draftMeta.current = null;
+    setEditingId(null);
+    if (!user) { setBlocks([]); setRating(0); setDraftUid(null); return; }
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(DRAFT_KEY + user.uid) || "null"); } catch(e) {}
+    if (d && Array.isArray(d.blocks) && d.blocks.length) {
+      setBlocks(d.blocks);
+      setRating(d.rating || 0);
+      draftMeta.current = {date: d.date || todayStr()};
+    } else {
+      setBlocks([]);
+      setRating(0);
+    }
+    setDraftUid(user.uid);
+  }, [user]);
+
+  // ...ja tallennetaan jokaisen muutoksen jälkeen (ei silloin kun muokataan vanhaa treeniä).
+  useEffect(() => {
+    if (!user || draftUid !== user.uid || editingId !== null) return;
+    try {
+      if (!blocks.length) {
+        draftMeta.current = null;
+        localStorage.removeItem(DRAFT_KEY + user.uid);
+      } else {
+        if (!draftMeta.current) draftMeta.current = {date: todayStr()};
+        localStorage.setItem(DRAFT_KEY + user.uid, JSON.stringify({blocks, rating, date: draftMeta.current.date}));
+      }
+    } catch(e) {}
+  }, [blocks, rating, editingId, user, draftUid]);
 
   useEffect(() => {
     if (!user) { setWorkouts([]); setLoaded(false); return; }
@@ -351,6 +478,34 @@ function App() {
     return [...s];
   }
 
+  function lastTime(name) {
+    const q = name.trim().toLowerCase();
+    if (!q) return null;
+    for (let i = workouts.length - 1; i >= 0; i--) {
+      const w = workouts[i];
+      if (w.id === editingId) continue;
+      for (const g of (w.groups||[])) for (const e of (g.exercises||[])) {
+        if ((e.name||"").toLowerCase() === q && (e.sets||[]).length) return {date:w.date, sets:e.sets};
+      }
+    }
+    return null;
+  }
+
+  function restoreDraft() {
+    const s = stashRef.current;
+    stashRef.current = null;
+    setEditingId(null);
+    setBlocks(s ? s.blocks : []);
+    setRating(s ? s.rating : 0);
+  }
+
+  function clearDraft() {
+    if (!confirm("Tyhjennetäänkö päivän treeni?")) return;
+    haptic();
+    setBlocks([]);
+    setRating(0);
+  }
+
   function saveWorkout() {
     if (!blocks.length) { showToast("Lisää lihasryhmä"); return; }
     const groups = blocks.map(b => {
@@ -363,13 +518,12 @@ function App() {
     if (editingId !== null) {
       const existing = workouts.find(w => w.id === editingId);
       col.doc(editingId).set(Object.assign({}, existing, {groups, rating})).catch(() => showToast("Tallennus epäonnistui"));
-      setEditingId(null);
-      setBlocks([]);
-      setRating(0);
+      restoreDraft();
       showToast("Päivitetty!");
     } else {
       const id = uid();
-      col.doc(id).set({id, date:todayStr(), time:nowTime(), ts:Date.now(), groups, rating}).catch(() => showToast("Tallennus epäonnistui"));
+      const date = (draftMeta.current && draftMeta.current.date) || todayStr();
+      col.doc(id).set({id, date, time:nowTime(), ts:Date.now(), groups, rating}).catch(() => showToast("Tallennus epäonnistui"));
       setBlocks([]);
       setRating(0);
       showToast("Tallennettu!");
@@ -391,6 +545,7 @@ function App() {
       ct: g.ct || "",
       cn: g.cn || ""
     }));
+    if (editingId === null) stashRef.current = {blocks, rating};
     setBlocks(newBlocks);
     setEditingId(id);
     setRating(w.rating || 0);
@@ -399,62 +554,43 @@ function App() {
     window.scrollTo(0, 0);
   }
 
-  function cancelEdit() {
-    setEditingId(null);
-    setBlocks([]);
-    setRating(0);
-  }
+  function cancelEdit() { restoreDraft(); }
 
   function delW(id) {
     if (!confirm("Poistetaanko tämä treeni?")) return;
     haptic();
-    if (editingId === id) { setEditingId(null); setBlocks([]); setRating(0); }
+    if (editingId === id) restoreDraft();
     db.collection("users").doc(user.uid).collection("workouts").doc(id).delete().catch(() => showToast("Poisto epäonnistui"));
   }
 
-  const allEx = [...new Set(workouts.flatMap(w => (w.groups||[]).flatMap(g => (g.exercises||[]).map(e => e.name))))].filter(Boolean).sort();
-  const curEx = pEx || allEx[0] || "";
-
-  const prs = {};
+  // Progressio: lihasryhmä -> liike -> treenikerrat (vanhimmasta uusimpaan)
+  const exIdx = {};
   workouts.forEach(w => (w.groups||[]).forEach(g => (g.exercises||[]).forEach(e => {
-    (e.sets||[]).forEach(s => {
-      const wt = parseFloat(s.weight)||0;
-      if (!prs[e.name] || wt > prs[e.name].w) prs[e.name] = {w:wt, d:w.date};
-    });
+    if (!e.name) return;
+    const m = exIdx[g.muscle] || (exIdx[g.muscle] = {});
+    (m[e.name] || (m[e.name] = [])).push({date:w.date, sets:e.sets||[]});
   })));
-
-  const pEntries = workouts.flatMap(w =>
-    (w.groups||[]).flatMap(g =>
-      (g.exercises||[]).filter(e => e.name === curEx).flatMap(e =>
-        (e.sets||[]).map(s => ({date:w.date, reps:s.reps, weight:parseFloat(s.weight)||0}))
-      )
-    )
-  ).reverse();
+  const pMuscles = MUSCLES.flat().filter(m => exIdx[m]);
+  const curMuscle = exIdx[pMuscle] ? pMuscle : (pMuscles[0] || "");
+  const pList = Object.entries(exIdx[curMuscle] || {}).sort((a,b) =>
+    b[1][b[1].length-1].date.localeCompare(a[1][a[1].length-1].date));
+  const pSessions = (exIdx[curMuscle] || {})[pEx];
 
   const cardioCount = workouts.filter(w => (w.groups||[]).some(g => g.muscle === "Cardio")).length;
 
-  const last30 = Date.now() - 30*24*3600*1000;
-  const recent30 = workouts.filter(w => new Date(w.date+"T12:00:00").getTime() > last30).length;
-  let consLabel = "Heikko", consColor = C.danger;
-  if (workouts.length === 0) { consLabel = "—"; consColor = C.textFaint; }
-  else if (recent30 >= 12) { consLabel = "Erinomainen"; consColor = C.success; }
-  else if (recent30 >= 8) { consLabel = "Hyvä"; consColor = "#c3e08a"; }
-  else if (recent30 >= 4) { consLabel = "Kohtalainen"; consColor = C.warn; }
-  else { consLabel = "Heikko"; consColor = C.danger; }
+  const last28 = Date.now() - 28*24*3600*1000;
+  const recent28 = workouts.filter(w => new Date(w.date+"T12:00:00").getTime() > last28).length;
+  const perWeek = (recent28 / 4).toLocaleString("fi-FI", {maximumFractionDigits:1});
 
   const now = new Date();
-  const yr = now.getFullYear(), mo = now.getMonth();
-  const fd = new Date(yr,mo,1).getDay();
+  const calDate = new Date(now.getFullYear(), now.getMonth() + calOff, 1);
+  const yr = calDate.getFullYear(), mo = calDate.getMonth();
+  const fd = calDate.getDay();
   const dim = new Date(yr,mo+1,0).getDate();
-  const wDates = {};
+  const calPrefix = yr+"-"+String(mo+1).padStart(2,"0")+"-";
   const wRatings = {};
   workouts.forEach(w => {
-    const prefix = yr+"-"+String(mo+1).padStart(2,"0");
-    if (w.date.startsWith(prefix)) {
-      const d = parseInt(w.date.split("-")[2]);
-      wDates[d] = (w.groups||[]).map(g => g.muscle).join(" + ");
-      wRatings[d] = w.rating || 0;
-    }
+    if ((w.date||"").startsWith(calPrefix)) wRatings[parseInt(w.date.split("-")[2])] = w.rating || 0;
   });
 
   if (authLoading) {
@@ -552,6 +688,16 @@ function App() {
                           {xi > 0 && <button style={S.delIcon} className="press" onClick={() => rmEx(block.id, ex.id)} aria-label="Poista liike"><IconX size={15}/></button>}
                         </div>
                         {(() => {
+                          const lt = lastTime(ex.name);
+                          if (!lt) return null;
+                          return (
+                            <div style={S.lastRow}>
+                              <span style={{color:C.textFaint}}>Viimeksi ({fmtShort(lt.date)}): </span>
+                              <b style={{color:C.text, fontWeight:600}}>{fmtSets(lt.sets)}</b>
+                            </div>
+                          );
+                        })()}
+                        {(() => {
                           const q = ex.name.trim().toLowerCase();
                           const suggestions = prevEx(block.muscle).filter(n =>
                             n.toLowerCase() !== q && (!q || n.toLowerCase().includes(q))
@@ -595,14 +741,29 @@ function App() {
                 <Stars value={rating} onChange={setRating} size={34} />
               </div>
             )}
+
+            {blocks.length > 0 && editingId === null && (
+              <div style={{textAlign:"center", marginBottom:8}}>
+                <div style={{fontSize:11.5, color:C.textFaint, lineHeight:1.5}}>
+                  Päivän treeni säilyy tällä laitteella, kunnes tallennat sen historiaan.
+                </div>
+                <button style={{...S.cancelbtn, width:"auto", padding:"10px 16px"}} className="press" onClick={clearDraft}>Tyhjennä treeni</button>
+              </div>
+            )}
           </div>
         )}
 
         {tab === "history" && (
           <div className="fade-anim">
-            <div style={S.card}>
-              <div style={{fontWeight:700, fontSize:14, marginBottom:10, textTransform:"capitalize", fontFamily:"'Oswald',sans-serif", letterSpacing:"0.02em"}}>
-                {now.toLocaleDateString("fi-FI",{month:"long",year:"numeric"})}
+            <div style={S.card} data-cal="">
+              <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10}}>
+                <button style={{...S.iconBtn, width:34, height:34}} className="press" onClick={() => { haptic(); setCalOff(o => o - 1); }} aria-label="Edellinen kuukausi"><IconChevL size={17}/></button>
+                <div style={{fontWeight:700, fontSize:14, textTransform:"capitalize", fontFamily:"'Oswald',sans-serif", letterSpacing:"0.02em"}}
+                  onClick={() => setCalOff(0)}>
+                  {calDate.toLocaleDateString("fi-FI",{month:"long",year:"numeric"})}
+                </div>
+                <button style={{...S.iconBtn, width:34, height:34, opacity: calOff >= 0 ? 0.3 : 1}} className="press" disabled={calOff >= 0}
+                  onClick={() => { haptic(); setCalOff(o => Math.min(0, o + 1)); }} aria-label="Seuraava kuukausi"><IconChevR size={17}/></button>
               </div>
               <div style={{...S.calGrid, marginBottom:5}}>
                 {["Ma","Ti","Ke","To","Pe","La","Su"].map(d => (
@@ -612,9 +773,10 @@ function App() {
               <div style={S.calGrid}>
                 {Array.from({length: fd===0?6:fd-1}).map((_,i) => <div key={"e"+i} />)}
                 {Array.from({length:dim}).map((_,i) => {
-                  const d = i+1, info = wDates[d], isT = d===now.getDate();
+                  const d = i+1, info = d in wRatings, isT = calOff===0 && d===now.getDate();
                   return (
-                    <div key={d} title={info||""} style={{
+                    <div key={d} onClick={info ? () => { haptic(); setDayView(calPrefix+String(d).padStart(2,"0")); } : undefined} style={{
+                      cursor: info ? "pointer" : "default",
                       aspectRatio:"1", borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center",
                       fontSize:11, fontWeight:isT?700:500,
                       background:info?(RATING_COLORS[wRatings[d]] || C.accent):"transparent",
@@ -624,13 +786,6 @@ function App() {
                   );
                 })}
               </div>
-              {Object.keys(wDates).length > 0 && (
-                <div style={{marginTop:12, display:"flex", flexDirection:"column", gap:3}}>
-                  {Object.entries(wDates).sort((a,b) => a[0]-b[0]).map(([d,info]) => (
-                    <div key={d} style={{fontSize:12, color:C.textDim}}><b style={{color:C.text}}>{d}.</b> {info}</div>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div style={S.stats}>
@@ -643,8 +798,8 @@ function App() {
                 <div style={S.statLabel}>Cardio</div>
               </div>
               <div style={S.stat}>
-                <div style={{...S.statNum, fontSize:15, color:consColor}}>{consLabel}</div>
-                <div style={S.statLabel}>Säännöllisyys</div>
+                <div style={{...S.statNum, color:C.text}}>{perWeek}</div>
+                <div style={S.statLabel}>Treeniä / vk (4 vk)</div>
               </div>
             </div>
 
@@ -681,47 +836,61 @@ function App() {
 
         {tab === "progress" && (
           <div className="fade-anim">
-            <div style={S.card}>
-              {allEx.length === 0 ? (
-                <div style={S.empty}>Tallenna ensin treenejä</div>
-              ) : (
-                <div>
-                  <select value={curEx} onChange={e => setPEx(e.target.value)}
-                    style={{...S.inp, marginBottom:12, fontWeight:600}}>
-                    {allEx.map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <div style={{display:"grid", gridTemplateColumns:"1fr 55px 65px", gap:4, marginBottom:6}}>
-                    {["Päivä","Toistot","Paino"].map((l,i) => (
-                      <span key={l} style={{fontSize:9.5, color:C.textFaint, textAlign:i>0?"center":"left", textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700}}>{l}</span>
+            {pMuscles.length === 0 ? (
+              <div style={S.card}><div style={S.empty}>Tallenna ensin treenejä</div></div>
+            ) : (
+              <div>
+                <div style={S.card}>
+                  <div style={S.label}>Valitse lihasryhmä</div>
+                  <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
+                    {pMuscles.map(m => (
+                      <button key={m} className="press" style={S.mBtn(m === curMuscle)}
+                        onClick={() => { haptic(); setPMuscle(m); setPEx(""); }}>{m}</button>
                     ))}
                   </div>
-                  {pEntries.map((e,i) => (
-                    <div key={i} style={{display:"grid", gridTemplateColumns:"1fr 55px 65px", gap:4, padding:"7px 0", borderBottom:"1px solid "+C.borderSoft, fontSize:13}}>
-                      <span style={{color:C.textDim}}>{fmtDate(e.date)}</span>
-                      <span style={{textAlign:"center", fontWeight:600}}>{e.reps}</span>
-                      <span style={{textAlign:"center", fontWeight:600}}>{e.weight} kg</span>
-                    </div>
-                  ))}
                 </div>
-              )}
-            </div>
 
-            <div style={S.card}>
-              <div style={S.label}>Ennätykset</div>
-              {Object.keys(prs).length === 0 ? (
-                <div style={S.empty}>Ei ennätyksiä</div>
-              ) : (
-                Object.entries(prs).sort((a,b) => b[1].w-a[1].w).map(([name,pr]) => (
-                  <div key={name} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid "+C.borderSoft}}>
-                    <span style={{fontSize:13.5, fontWeight:600}}>{name}</span>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontFamily:"'Oswald',sans-serif", fontWeight:600, fontSize:16, color:C.accent}}>{pr.w} kg</div>
-                      <div style={{fontSize:10.5, color:C.textFaint}}>{fmtDate(pr.d)}</div>
-                    </div>
+                {!pSessions ? (
+                  <div style={S.card}>
+                    <div style={{...S.label, marginBottom:2}}>Liikkeet</div>
+                    {pList.map(([name, ss]) => (
+                      <button key={name} className="press" style={S.listRow} onClick={() => { haptic(); setPEx(name); }}>
+                        <span style={{fontSize:14, fontWeight:600}}>{name}</span>
+                        <span style={{fontSize:11.5, color:C.textFaint, display:"flex", alignItems:"center", gap:6, flexShrink:0}}>
+                          {ss.length} krt · {fmtShort(ss[ss.length-1].date)} <IconChevR size={14}/>
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                ))
-              )}
-            </div>
+                ) : (
+                  <div style={S.card}>
+                    <button className="press" style={{...S.sbtn, marginTop:0, marginBottom:12}} onClick={() => setPEx("")}>
+                      <IconChevL size={13}/> {curMuscle}
+                    </button>
+                    <div style={{fontFamily:"'Oswald',sans-serif", fontSize:18, fontWeight:600, letterSpacing:"0.02em", marginBottom:8}}>{pEx}</div>
+                    {(() => {
+                      const st = exStats(pSessions);
+                      return (
+                        <div>
+                          {st.tops.length > 0 && (
+                            <div style={{marginBottom:10}}><ExChart tops={st.tops} /></div>
+                          )}
+                          {[...pSessions].reverse().map((s, i) => (
+                            <div key={i} style={{display:"flex", justifyContent:"space-between", gap:12, padding:"9px 0", borderBottom:"1px solid "+C.borderSoft, fontSize:13}}>
+                              <span style={{color:C.textDim, flexShrink:0}}>
+                                {fmtDate(s.date)}
+                                {st.rec.has(pSessions.length - 1 - i) && <b style={{color:C.success, marginLeft:6}}>↑</b>}
+                              </span>
+                              <span style={{fontWeight:600, textAlign:"right"}}>{fmtSets(s.sets)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -730,7 +899,7 @@ function App() {
         <div style={{...S.savebar, bottom:NAV_SAFE_H}}>
           <div style={S.savebarInner}>
             <button style={S.savebtn} className="press" onClick={saveWorkout}>
-              {editingId !== null ? "Päivitä treeni" : "Tallenna treeni"}
+              {editingId !== null ? "Päivitä treeni" : "Tallenna treeni historiaan"}
             </button>
             {editingId !== null && (
               <button style={S.cancelbtn} className="press" onClick={cancelEdit}>Peruuta muokkaus</button>
@@ -755,7 +924,7 @@ function App() {
       </nav>
 
       {showSettings && (
-        <div style={S.sheetBackdrop} className="backdrop-anim" onClick={() => setShowSettings(false)}>
+        <div style={S.sheetBackdrop} className="backdrop-anim" data-noswipe="" onClick={() => setShowSettings(false)}>
           <div style={S.sheet} className="sheet-anim" onClick={e => e.stopPropagation()}>
             <div style={S.sheetHandle} />
             <div style={S.avatar}>{(user.displayName || user.email || "?").charAt(0).toUpperCase()}</div>
@@ -764,6 +933,40 @@ function App() {
             <button style={S.dangerBtn} className="press" onClick={signOutUser}>
               <IconLogOut size={16}/> Kirjaudu ulos
             </button>
+          </div>
+        </div>
+      )}
+
+      {dayView && (
+        <div style={S.sheetBackdrop} className="backdrop-anim" data-noswipe="" onClick={() => setDayView(null)}>
+          <div style={{...S.sheet, textAlign:"left", maxHeight:"80vh", overflowY:"auto"}} className="sheet-anim" onClick={e => e.stopPropagation()}>
+            <div style={S.sheetHandle} />
+            {workouts.filter(w => w.date === dayView).map(w => (
+              <div key={w.id} style={{marginBottom:18}}>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                  <span style={{fontFamily:"'Oswald',sans-serif", fontSize:18, fontWeight:600, letterSpacing:"0.02em"}}>
+                    {fmtDate(w.date)}
+                    {w.time && <span style={{fontFamily:"'Manrope',sans-serif", fontWeight:500, color:C.textFaint, fontSize:12, marginLeft:8}}>{w.time}</span>}
+                  </span>
+                  {w.rating > 0 && <Stars value={w.rating} size={16} readOnly />}
+                </div>
+                {(w.groups||[]).map(g => (
+                  <div key={g.muscle} style={{marginTop:14}}>
+                    <div style={{...S.label, marginBottom:2}}>{g.muscle}</div>
+                    {g.muscle === "Cardio" ? (
+                      <div style={{fontSize:13.5, color:C.textDim, padding:"6px 0"}}>
+                        {(g.ct ? g.ct+" min" : "")+(g.cn ? (g.ct ? " · " : "")+g.cn : "")}
+                      </div>
+                    ) : (g.exercises||[]).map((e, i) => (
+                      <div key={i} style={{display:"flex", justifyContent:"space-between", gap:12, padding:"8px 0", borderBottom:"1px solid "+C.borderSoft, fontSize:13.5}}>
+                        <span style={{fontWeight:600}}>{e.name}</span>
+                        <span style={{color:C.textDim, textAlign:"right"}}>{fmtSets(e.sets)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         </div>
       )}
